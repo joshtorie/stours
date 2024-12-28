@@ -23,14 +23,14 @@ export default function NeighborhoodPage() {
         return;
       }
 
-      // Extract street art IDs
-      const streetArtIds = streetArtData.map(art => art.id);
+      // Extract artist IDs from the street art data
+      const artistIds = streetArtData.map(art => art.artist_id); // Assuming artist_id is the correct field
 
-      // Fetch artists associated with the street art IDs
+      // Fetch artists using the extracted artist IDs
       const { data: artistsData, error: artistsError } = await supabase
         .from('artists')
         .select('*')
-        .in('street_art_id', streetArtIds); // Fetch artists by street_art_id
+        .in('id', artistIds); // Fetch artists by their IDs
 
       if (artistsError) {
         console.error(artistsError);
