@@ -19,6 +19,10 @@ export function Card({ title, image, link, subtitle }: CardProps) {
           src={image}
           alt={title}
           className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            console.error('Image failed to load:', e);
+            e.currentTarget.src = 'https://via.placeholder.com/150'; // Optional fallback image
+          }}
         />
       </div>
       <div className="p-4">
