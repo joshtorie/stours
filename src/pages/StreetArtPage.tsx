@@ -48,7 +48,7 @@ export default function StreetArtPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="h-[70vh] relative">
         <img
-          src={streetArt.hero_image} // Use the hero image from the street art card
+          src={streetArt.image} // Use the hero image from the street art card
           alt={streetArt.title}
           className="w-full h-full object-cover"
         />
