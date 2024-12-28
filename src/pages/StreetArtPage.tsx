@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { MapPin, User } from 'lucide-react';
+import { MapPin, User, ShoppingCart } from 'lucide-react';
 import { supabase } from '../lib/supabase'; // Import the Supabase client
 
 export default function StreetArtPage() {
@@ -48,10 +48,14 @@ export default function StreetArtPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="h-[70vh] relative">
         <img
-          src={streetArt.image} // Use the hero image from the street art card
+          src={streetArt.image} // Use the image from the street art card
           alt={streetArt.title}
           className="w-full h-full object-cover"
         />
+        <a href={streetArt.shop_page} target="_blank" rel="noopener noreferrer" className="absolute bottom-4 right-4 flex items-center gap-2 bg-gray-100 p-2 rounded-lg">
+          <ShoppingCart className="w-5 h-5" />
+          <span>Shop</span>
+        </a>
       </div>
       
       <div className="container mx-auto px-4 py-8">
