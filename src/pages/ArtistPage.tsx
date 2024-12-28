@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'; // Import the Supabase client
 export default function ArtistPage() {
   const { id } = useParams();
   const [artist, setArtist] = useState(null);
+  const [streetArt, setStreetArt] = useState([]);
 
   useEffect(() => {
     const fetchArtist = async () => {
@@ -21,6 +22,20 @@ export default function ArtistPage() {
         console.error(error);
       } else {
         setArtist(data);
+        fetchStreetArt(data.id); // Fetch street art using the artist's ID
+      }
+    };
+
+    const fetchStreetArt = async (artistId) => {
+      const { data, error } = await supabase
+        .from('street_art')
+        .select('*')
+        .eq('artist_id', artistId); // Fetch street art by artist_id
+
+      if (error) {
+        console.error(error);
+      } else {
+        setStreetArt(data);
       }
     };
 
@@ -39,11 +54,14 @@ export default function ArtistPage() {
       
       <div className="container mx-auto px-4 py-8">
         <Carousel title="Street Art">
-          <Card
-            title="Featured Work"
-            image="https://images.unsplash.com/photo-1499781350541-7783f6c6a0c8"
-            link={`/street-art/1`}
-          />
+          {streetArt.map((art) => (
+            <Card
+              key={art.id} // Assuming each street art has a unique id
+              title={art.title} // Replace with the actual field name
+              image={art.image} // Replace with the actual field name
+              link={`/street-art/${art.id}`} // Link to the street art page
+            />
+          ))}
         </Carousel>
 
         <Carousel title="Featured Tours">
