@@ -52,10 +52,6 @@ export default function StreetArtPage() {
           alt={streetArt.title}
           className="w-full h-full object-cover"
         />
-        <a href={streetArt.shop_page} target="_blank" rel="noopener noreferrer" className="absolute bottom-4 right-4 flex items-center gap-2 bg-gray-100 p-2 rounded-lg">
-          <ShoppingCart className="w-5 h-5" />
-          <span>Shop</span>
-        </a>
       </div>
       
       <div className="container mx-auto px-4 py-8">
@@ -73,7 +69,14 @@ export default function StreetArtPage() {
             </div>
           </div>
           
-          <p className="text-gray-600">
+          <div className="flex items-center justify-between mt-4">
+            <a href={streetArt.shop_page} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition">
+              <ShoppingCart className="w-5 h-5" />
+              <span>Shop</span>
+            </a>
+          </div>
+          
+          <p className="text-gray-600 mt-4">
             {streetArt.description} {/* Description of the street art */}
           </p>
         </div>
