@@ -31,14 +31,17 @@ export default function HomePage() {
           {neighborhoodsLoading ? (
             renderLoading()
           ) : (
-            neighborhoods.map(neighborhood => (
-              <Card
-                key={neighborhood.id}
-                title={neighborhood.name}
-                image={neighborhood.hero_image}
-                link={`/neighborhoods/${neighborhood.id}`}
-              />
-            ))
+            neighborhoods.map(neighborhood => {
+              console.log('Neighborhood Hero Image URL:', neighborhood.hero_image);
+              return (
+                <Card
+                  key={neighborhood.id}
+                  title={neighborhood.name}
+                  image={neighborhood.hero_image}
+                  link={`/neighborhoods/${neighborhood.id}`}
+                />
+              );
+            })
           )}
         </Carousel>
 
