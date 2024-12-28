@@ -9,9 +9,23 @@ export default function NeighborhoodPage() {
   const { id } = useParams();
   const [artists, setArtists] = useState([]);
   const [streetArt, setStreetArt] = useState([]);
+  const [neighborhood, setNeighborhood] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
+      // Fetch neighborhood data
+      const { data: neighborhoodData, error: neighborhoodError } = await supabase
+        .from('neighborhoods')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (neighborhoodError) {
+        console.error(neighborhoodError);
+      } else {
+        setNeighborhood(neighborhoodData);
+      }
+
       // Fetch street art associated with the neighborhood
       const { data: streetArtData, error: streetArtError } = await supabase
         .from('street_art')
@@ -45,12 +59,14 @@ export default function NeighborhoodPage() {
     fetchData();
   }, [id]);
 
+  if (!neighborhood) return <div>Loading...</div>;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <HeroSection
-        image="https://images.unsplash.com/photo-1517713982677-4b66332f98de"
-        title="Neighborhood Name"
-        subtitle="Discover local street art"
+        image={neighborhood.hero_image} // Dynamic hero image
+        title={neighborhood.name} // Dynamic title
+        subtitle={`Explore the neighborhood`} // Optional subtitle
       />
       
       <div className="container mx-auto px-4 py-8">
