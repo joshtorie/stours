@@ -20,7 +20,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <HeroSection
-        image="https://images.unsplash.com/photo-1532589229401-a5cad447e9ab"
+        image="https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/0.22770001286388153.png"
         title="Discover Street Art"
         subtitle="Explore the vibrant street art scene in your city"
         showSearch
