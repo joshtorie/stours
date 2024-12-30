@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNeighborhoods } from '../hooks/useNeighborhoods';
 import { useArtists } from '../hooks/useArtists';
@@ -19,6 +19,10 @@ interface SelectedLocation {
   };
 }
 
+// Constants
+const MINUTES_PER_STOP = 3;
+const SURPRISE_ME = 'surprise_me';
+
 export default function TourCreate() {
   const navigate = useNavigate();
   
@@ -31,22 +35,79 @@ export default function TourCreate() {
   // State for selected locations
   const [selectedLocations, setSelectedLocations] = useState<SelectedLocation[]>([]);
 
-  // Fetch data using hooks
+  // Fetch all data
   const { neighborhoods, loading: loadingNeighborhoods } = useNeighborhoods();
   const { artists: allArtists, loading: loadingArtists } = useArtists();
-  const { streetArt: streetArtworks, loading: loadingStreetArt } = useStreetArt({
-    artistId: artist,
+  const { streetArt: allStreetArt, loading: loadingStreetArt } = useStreetArt({
     neighborhoodId: neighborhood
   });
 
-  // Filter artists by neighborhood
-  const filteredArtists = neighborhood
-    ? allArtists.filter(a => a.neighborhood_id === neighborhood)
-    : [];
+  // Get unique artists who have street art in the selected neighborhood
+  const filteredArtists = useMemo(() => {
+    if (!neighborhood) return [];
+    
+    const artistsWithArt = Array.from(new Set(allStreetArt.map(art => art.artist_id)))
+      .map(artistId => allArtists.find(a => a.id === artistId))
+      .filter((artist): artist is Artist => artist !== undefined);
+    
+    return [{ id: SURPRISE_ME, name: 'Surprise Me!' }, ...artistsWithArt];
+  }, [neighborhood, allStreetArt, allArtists]);
+
+  // Get street art based on selections
+  const filteredStreetArt = useMemo(() => {
+    if (!neighborhood) return [];
+    
+    const artworks = artist === SURPRISE_ME
+      ? allStreetArt
+      : artist
+        ? allStreetArt.filter(art => art.artist_id === artist)
+        : [];
+    
+    return [{ id: SURPRISE_ME, title: 'Surprise Me!', artist_id: '', neighborhood_id: '', latitude: 0, longitude: 0 }, ...artworks];
+  }, [neighborhood, artist, allStreetArt]);
+
+  const generateSurpriseLocations = (minutes: number) => {
+    const maxStops = Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
+    let availableArt = [...allStreetArt];
+    
+    // If artist is selected (and not surprise_me), filter by artist
+    if (artist && artist !== SURPRISE_ME) {
+      availableArt = availableArt.filter(art => art.artist_id === artist);
+    }
+
+    // Randomly select street art up to maxStops
+    const selectedArt = [];
+    while (selectedArt.length < maxStops && availableArt.length > 0) {
+      const randomIndex = Math.floor(Math.random() * availableArt.length);
+      const artwork = availableArt[randomIndex];
+      const artArtist = allArtists.find(a => a.id === artwork.artist_id);
+      
+      if (artArtist) {
+        selectedArt.push({
+          id: artwork.id,
+          title: artwork.title || 'Untitled',
+          artist: artArtist.name,
+          coordinates: {
+            lat: artwork.latitude,
+            lng: artwork.longitude
+          }
+        });
+      }
+      
+      availableArt.splice(randomIndex, 1);
+    }
+
+    return selectedArt;
+  };
 
   const handleArtworkSelect = () => {
-    if (streetArt) {
-      const artwork = streetArtworks.find(art => art.id === streetArt);
+    if (!streetArt) return;
+
+    if (streetArt === SURPRISE_ME) {
+      // Don't add anything yet, wait for tour length selection
+      setSelectedLocations([]);
+    } else {
+      const artwork = allStreetArt.find(art => art.id === streetArt);
       const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
       
       if (artwork && selectedArtist) {
@@ -60,8 +121,10 @@ export default function TourCreate() {
           }
         }]);
       }
-      
-      // Reset selections for next artwork
+    }
+    
+    // Reset selections for next artwork if not using surprise me
+    if (streetArt !== SURPRISE_ME) {
       setNeighborhood('');
       setArtist('');
       setStreetArt('');
@@ -69,12 +132,21 @@ export default function TourCreate() {
   };
 
   const handleCreateTour = () => {
-    if (selectedLocations.length > 0 && tourLength) {
-      // Pass the selected locations and tour length to the tour options page
+    if (!tourLength) return;
+    
+    const minutes = parseInt(tourLength);
+    let finalLocations = selectedLocations;
+
+    // If using surprise me, generate locations now
+    if (streetArt === SURPRISE_ME || artist === SURPRISE_ME) {
+      finalLocations = generateSurpriseLocations(minutes);
+    }
+
+    if (finalLocations.length > 0) {
       navigate('/tour-options', {
         state: {
-          locations: selectedLocations,
-          duration: parseInt(tourLength)
+          locations: finalLocations,
+          duration: minutes
         }
       });
     }
@@ -95,7 +167,12 @@ export default function TourCreate() {
             </label>
             <select 
               value={neighborhood} 
-              onChange={(e) => setNeighborhood(e.target.value)}
+              onChange={(e) => {
+                setNeighborhood(e.target.value);
+                setArtist('');
+                setStreetArt('');
+                setSelectedLocations([]);
+              }}
               className="w-full p-2 border rounded"
             >
               <option value="">Select Neighborhood</option>
@@ -111,7 +188,13 @@ export default function TourCreate() {
             </label>
             <select 
               value={artist} 
-              onChange={(e) => setArtist(e.target.value)}
+              onChange={(e) => {
+                setArtist(e.target.value);
+                setStreetArt('');
+                if (e.target.value === SURPRISE_ME) {
+                  setSelectedLocations([]);
+                }
+              }}
               className="w-full p-2 border rounded"
               disabled={!neighborhood}
             >
@@ -128,13 +211,20 @@ export default function TourCreate() {
             </label>
             <select 
               value={streetArt} 
-              onChange={(e) => setStreetArt(e.target.value)}
+              onChange={(e) => {
+                setStreetArt(e.target.value);
+                if (e.target.value === SURPRISE_ME) {
+                  setSelectedLocations([]);
+                }
+              }}
               className="w-full p-2 border rounded"
               disabled={!artist}
             >
               <option value="">Select Street Art</option>
-              {streetArtworks.map((art) => (
-                <option key={art.id} value={art.id}>{art.title || 'Untitled'}</option>
+              {filteredStreetArt.map((art) => (
+                <option key={art.id} value={art.id}>
+                  {art.id === SURPRISE_ME ? art.title : art.title || 'Untitled'}
+                </option>
               ))}
             </select>
           </div>
@@ -148,24 +238,31 @@ export default function TourCreate() {
                 : 'bg-blue-500 hover:bg-blue-600'
             }`}
           >
-            Add to Tour
+            {streetArt === SURPRISE_ME ? 'Continue to Tour Length' : 'Add to Tour'}
           </button>
         </div>
 
         <div className="flex flex-col">
           <h2 className="text-lg font-semibold mb-4">Selected Locations</h2>
           <div className="flex-grow">
-            <ul className="space-y-2">
-              {selectedLocations.map((location, index) => (
-                <li key={index} className="border p-3 rounded shadow-sm">
-                  <p><span className="font-medium">Title:</span> {location.title}</p>
-                  <p><span className="font-medium">Artist:</span> {location.artist}</p>
-                </li>
-              ))}
-            </ul>
+            {streetArt === SURPRISE_ME ? (
+              <p className="text-gray-600 italic">
+                Your tour will be automatically generated based on your preferences
+                and selected tour length.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {selectedLocations.map((location, index) => (
+                  <li key={index} className="border p-3 rounded shadow-sm">
+                    <p><span className="font-medium">Title:</span> {location.title}</p>
+                    <p><span className="font-medium">Artist:</span> {location.artist}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {selectedLocations.length > 0 && (
+          {(selectedLocations.length > 0 || streetArt === SURPRISE_ME) && (
             <div className="mt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -177,10 +274,10 @@ export default function TourCreate() {
                   className="w-full p-2 border rounded"
                 >
                   <option value="">Select Tour Length</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="90">1.5 hours</option>
-                  <option value="120">2 hours</option>
+                  <option value="30">30 minutes (up to 5 stops)</option>
+                  <option value="60">1 hour (up to 10 stops)</option>
+                  <option value="90">1.5 hours (up to 15 stops)</option>
+                  <option value="120">2 hours (up to 20 stops)</option>
                 </select>
               </div>
 
