@@ -12,11 +12,10 @@ interface Location {
   };
 }
 
-interface RouteOption {
+interface TourVariation {
   name: string;
-  waypoints: google.maps.DirectionsWaypoint[];
-  origin: google.maps.LatLng;
-  destination: google.maps.LatLng;
+  description: string;
+  locations: Location[];
   response: google.maps.DirectionsResult | null;
   estimatedTime: number;
   distance: string;
@@ -32,98 +31,21 @@ const center = { lat: -33.92543, lng: 18.42322 }; // Cape Town
 export default function TourOptions() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { locations = [], duration = 0 } = location.state || {};
-  const [selectedRoute, setSelectedRoute] = useState<RouteOption | null>(null);
+  const { tourVariations = [], duration = 0 } = location.state || {};
+
+  const [selectedVariation, setSelectedVariation] = useState<number | null>(null);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: ['places']
   });
 
-  // Generate different route options
-  const generateRouteOptions = useCallback((locations: Location[]): RouteOption[] => {
-    if (locations.length < 2) return [];
-
-    // Create waypoints from locations (excluding first and last)
-    const createWaypoints = (locs: Location[]) => 
-      locs.slice(1, -1).map(loc => ({
-        location: new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
-        stopover: true
-      }));
-
-    // Create three different route variations
-    return [
-      {
-        name: 'Shortest Route',
-        waypoints: createWaypoints(locations),
-        origin: new google.maps.LatLng(locations[0].coordinates.lat, locations[0].coordinates.lng),
-        destination: new google.maps.LatLng(
-          locations[locations.length - 1].coordinates.lat,
-          locations[locations.length - 1].coordinates.lng
-        ),
-        response: null,
-        estimatedTime: 0,
-        distance: ''
-      },
-      {
-        name: 'Scenic Route',
-        waypoints: createWaypoints([...locations].reverse()),
-        origin: new google.maps.LatLng(
-          locations[locations.length - 1].coordinates.lat,
-          locations[locations.length - 1].coordinates.lng
-        ),
-        destination: new google.maps.LatLng(locations[0].coordinates.lat, locations[0].coordinates.lng),
-        response: null,
-        estimatedTime: 0,
-        distance: ''
-      },
-      {
-        name: 'Alternative Route',
-        waypoints: createWaypoints([...locations].sort(() => Math.random() - 0.5)),
-        origin: new google.maps.LatLng(locations[0].coordinates.lat, locations[0].coordinates.lng),
-        destination: new google.maps.LatLng(
-          locations[locations.length - 1].coordinates.lat,
-          locations[locations.length - 1].coordinates.lng
-        ),
-        response: null,
-        estimatedTime: 0,
-        distance: ''
-      }
-    ];
-  }, []);
-
-  const [routeOptions, setRouteOptions] = useState<RouteOption[]>(() => 
-    generateRouteOptions(locations)
-  );
-
-  const directionsCallback = useCallback((
-    response: google.maps.DirectionsResult | null,
-    status: google.maps.DirectionsStatus,
-    routeIndex: number
-  ) => {
-    if (status === 'OK' && response) {
-      const route = response.routes[0];
-      const leg = route.legs[0];
-      
-      setRouteOptions(prev => {
-        const updated = [...prev];
-        updated[routeIndex] = {
-          ...updated[routeIndex],
-          response,
-          estimatedTime: Math.ceil(leg.duration?.value || 0) / 60, // Convert to minutes
-          distance: leg.distance?.text || ''
-        };
-        return updated;
-      });
-    }
-  }, []);
-
-  const handleRouteSelect = (route: RouteOption) => {
-    setSelectedRoute(route);
+  const handleRouteSelect = (index: number) => {
+    setSelectedVariation(index);
     navigate('/tour-page', { 
       state: { 
-        selectedRoute: route,
-        locations
+        selectedRoute: tourVariations[index],
+        duration
       } 
     });
   };
@@ -136,7 +58,7 @@ export default function TourOptions() {
     return <div>Loading maps...</div>;
   }
 
-  if (locations.length === 0) {
+  if (tourVariations.length === 0) {
     return (
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4">No Tour Options Available</h1>
@@ -148,37 +70,57 @@ export default function TourOptions() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Select Your Tour Route</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {routeOptions.map((route, index) => (
-          <div key={index} className="border p-4 rounded shadow-lg hover:shadow-xl transition-shadow">
-            <h2 className="text-xl font-semibold mb-2">{route.name}</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {tourVariations.map((variation, index) => (
+          <div 
+            key={index} 
+            className="border rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white"
+          >
+            <div className="p-4 border-b bg-gray-50">
+              <h2 className="text-xl font-semibold">{variation.name}</h2>
+              <p className="text-gray-600 mt-1">{variation.description}</p>
+            </div>
             
             {/* Map preview */}
-            <div className="mb-4">
+            <div className="h-64 relative">
               <GoogleMap
-                mapContainerStyle={mapContainerStyle}
-                center={center}
+                mapContainerStyle={{ width: '100%', height: '100%' }}
+                center={variation.locations[0].coordinates}
                 zoom={13}
               >
                 {/* Request directions */}
                 <DirectionsService
                   options={{
-                    destination: route.destination,
-                    origin: route.origin,
-                    waypoints: route.waypoints,
+                    destination: variation.locations[variation.locations.length - 1].coordinates,
+                    origin: variation.locations[0].coordinates,
+                    waypoints: variation.locations.slice(1, -1).map(loc => ({
+                      location: new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
+                      stopover: true
+                    })),
                     travelMode: google.maps.TravelMode.WALKING,
                     optimizeWaypoints: true
                   }}
-                  callback={(response, status) => 
-                    directionsCallback(response, status, index)
-                  }
+                  callback={(response, status) => {
+                    if (status === 'OK' && response) {
+                      const route = response.routes[0];
+                      const leg = route.legs[0];
+                      
+                      // Update the tour variation with the route details
+                      tourVariations[index] = {
+                        ...variation,
+                        response,
+                        estimatedTime: Math.ceil(leg.duration?.value || 0) / 60,
+                        distance: leg.distance?.text || ''
+                      };
+                    }
+                  }}
                 />
                 
                 {/* Render directions if available */}
-                {route.response && (
+                {variation.response && (
                   <DirectionsRenderer
                     options={{
-                      directions: route.response,
+                      directions: variation.response,
                       suppressMarkers: false
                     }}
                   />
@@ -186,36 +128,50 @@ export default function TourOptions() {
               </GoogleMap>
             </div>
 
-            {/* Route details */}
-            {route.response && (
-              <>
-                <p className="text-gray-600 mb-2">
-                  Estimated Time: {Math.round(route.estimatedTime)} minutes
-                </p>
-                <p className="text-gray-600 mb-4">Distance: {route.distance}</p>
-              </>
-            )}
-
-            <h3 className="font-medium mb-2">Stops:</h3>
-            <ul className="list-disc pl-5 mb-4">
-              {locations.map((location, idx) => (
-                <li key={idx} className="text-gray-700">
-                  {location.title} by {location.artist}
+            <div className="p-4">
+              <h3 className="font-medium mb-2">Tour Details:</h3>
+              <ul className="space-y-2 mb-4">
+                <li>
+                  <span className="font-medium">Stops:</span> {variation.locations.length}
                 </li>
-              ))}
-            </ul>
+                {variation.estimatedTime && (
+                  <li>
+                    <span className="font-medium">Walking Time:</span>{' '}
+                    {Math.round(variation.estimatedTime)} minutes
+                  </li>
+                )}
+                {variation.distance && (
+                  <li>
+                    <span className="font-medium">Total Distance:</span> {variation.distance}
+                  </li>
+                )}
+              </ul>
 
-            <button 
-              onClick={() => handleRouteSelect(route)}
-              disabled={!route.response}
-              className={`w-full p-2 rounded text-white transition-colors ${
-                !route.response
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-600'
-              }`}
-            >
-              {route.response ? 'Select this Route' : 'Calculating route...'}
-            </button>
+              <div className="space-y-2">
+                <h3 className="font-medium">Stops:</h3>
+                <ul className="space-y-1">
+                  {variation.locations.map((location, idx) => (
+                    <li key={idx} className="text-gray-700 text-sm">
+                      {idx + 1}. {location.title} by {location.artist}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <button 
+                onClick={() => handleRouteSelect(index)}
+                disabled={!variation.response}
+                className={`
+                  w-full mt-4 p-3 rounded-lg text-white transition-colors
+                  ${!variation.response
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600'
+                  }
+                `}
+              >
+                {variation.response ? 'Select this Route' : 'Calculating route...'}
+              </button>
+            </div>
           </div>
         ))}
       </div>

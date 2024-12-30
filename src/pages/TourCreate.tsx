@@ -20,6 +20,12 @@ interface SelectedLocation {
   };
 }
 
+interface TourVariation {
+  name: string;
+  description: string;
+  locations: SelectedLocation[];
+}
+
 // Constants
 const MINUTES_PER_STOP = 3;
 const SURPRISE_ME = 'surprise_me';
@@ -29,12 +35,13 @@ export default function TourCreate() {
   
   // State for form selections
   const [neighborhood, setNeighborhood] = useState('');
-  const [artist, setArtist] = useState('');
-  const [streetArt, setStreetArt] = useState('');
+  const [selectedArtists, setSelectedArtists] = useState<Set<string>>(new Set());
+  const [selectedStreetArt, setSelectedStreetArt] = useState<Set<string>>(new Set());
   const [tourLength, setTourLength] = useState('');
   
   // State for selected locations
   const [selectedLocations, setSelectedLocations] = useState<SelectedLocation[]>([]);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
 
   // Fetch all data
   const { neighborhoods, loading: loadingNeighborhoods } = useNeighborhoods();
@@ -51,29 +58,117 @@ export default function TourCreate() {
       .map(artistId => allArtists.find(a => a.id === artistId))
       .filter((artist): artist is Artist => artist !== undefined);
     
-    return [{ id: SURPRISE_ME, name: 'Surprise Me!' }, ...artistsWithArt];
+    return [{ id: SURPRISE_ME, name: 'Surprise Me!', hero_image: 'https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg' }, ...artistsWithArt];
   }, [neighborhood, allStreetArt, allArtists]);
 
   // Get street art based on selections
   const filteredStreetArt = useMemo(() => {
     if (!neighborhood) return [];
     
-    const artworks = artist === SURPRISE_ME
+    const artworks = selectedArtists.has(SURPRISE_ME)
       ? allStreetArt
-      : artist
-        ? allStreetArt.filter(art => art.artist_id === artist)
+      : selectedArtists.size > 0
+        ? allStreetArt.filter(art => selectedArtists.has(art.artist_id))
         : [];
     
-    return [{ id: SURPRISE_ME, title: 'Surprise Me!', artist_id: '', neighborhood_id: '', latitude: 0, longitude: 0 }, ...artworks];
-  }, [neighborhood, artist, allStreetArt]);
+    return [{ id: SURPRISE_ME, title: 'Surprise Me!', artist_id: '', neighborhood_id: '', image: 'https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg', latitude: 0, longitude: 0 }, ...artworks];
+  }, [neighborhood, selectedArtists, allStreetArt]);
+
+  const handleArtistToggle = (artistId: string) => {
+    setSelectedArtists(prev => {
+      const newSelection = new Set(prev);
+      if (artistId === SURPRISE_ME) {
+        // If selecting surprise me, clear other selections
+        if (!newSelection.has(SURPRISE_ME)) {
+          newSelection.clear();
+          newSelection.add(SURPRISE_ME);
+        } else {
+          newSelection.delete(SURPRISE_ME);
+        }
+      } else {
+        // If selecting specific artist, remove surprise me
+        newSelection.delete(SURPRISE_ME);
+        if (newSelection.has(artistId)) {
+          newSelection.delete(artistId);
+        } else {
+          newSelection.add(artistId);
+        }
+      }
+      return newSelection;
+    });
+    setSelectedStreetArt(new Set());
+    setSelectedLocations([]);
+  };
+
+  const handleStreetArtToggle = (artId: string) => {
+    setSelectedStreetArt(prev => {
+      const newSelection = new Set(prev);
+      if (artId === SURPRISE_ME) {
+        // If selecting surprise me, clear other selections
+        if (!newSelection.has(SURPRISE_ME)) {
+          newSelection.clear();
+          newSelection.add(SURPRISE_ME);
+        } else {
+          newSelection.delete(SURPRISE_ME);
+        }
+      } else {
+        // If selecting specific art, remove surprise me
+        newSelection.delete(SURPRISE_ME);
+        if (newSelection.has(artId)) {
+          newSelection.delete(artId);
+        } else {
+          newSelection.add(artId);
+        }
+      }
+      return newSelection;
+    });
+  };
+
+  const handleArtworkSelect = () => {
+    if (selectedStreetArt.size === 0) return;
+
+    if (selectedStreetArt.has(SURPRISE_ME)) {
+      // Don't add anything yet, wait for tour length selection
+      setSelectedLocations([]);
+    } else {
+      const newLocations = Array.from(selectedStreetArt)
+        .map(artId => {
+          const artwork = allStreetArt.find(art => art.id === artId);
+          const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
+          
+          if (artwork && selectedArtist) {
+            return {
+              id: artwork.id,
+              title: artwork.title || 'Untitled',
+              artist: selectedArtist.name,
+              coordinates: {
+                lat: artwork.latitude,
+                lng: artwork.longitude
+              }
+            };
+          }
+          return null;
+        })
+        .filter((loc): loc is SelectedLocation => loc !== null);
+
+      setSelectedLocations(newLocations);
+    }
+    
+    // Reset selections for next artwork if not using surprise me
+    if (!selectedStreetArt.has(SURPRISE_ME)) {
+      setNeighborhood('');
+      setSelectedArtists(new Set());
+      setSelectedStreetArt(new Set());
+    }
+  };
 
   const generateSurpriseLocations = (minutes: number) => {
-    const maxStops = Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
+    const maxStops = Math.floor(minutes / (MINUTES_PER_STOP * 2));
     let availableArt = [...allStreetArt];
     
-    // If artist is selected (and not surprise_me), filter by artist
-    if (artist && artist !== SURPRISE_ME) {
-      availableArt = availableArt.filter(art => art.artist_id === artist);
+    // If specific artists are selected (and not surprise_me), filter by artists
+    if (!selectedArtists.has(SURPRISE_ME) && selectedArtists.size > 0) {
+      availableArt = availableArt.filter(art => selectedArtists.has(art.artist_id));
     }
 
     // Randomly select street art up to maxStops
@@ -101,52 +196,144 @@ export default function TourCreate() {
     return selectedArt;
   };
 
-  const handleArtworkSelect = () => {
-    if (!streetArt) return;
+  const calculateMaxStops = (minutes: number) => {
+    return Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
+  };
 
-    if (streetArt === SURPRISE_ME) {
-      // Don't add anything yet, wait for tour length selection
-      setSelectedLocations([]);
-    } else {
-      const artwork = allStreetArt.find(art => art.id === streetArt);
-      const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
+  const calculateDistance = (loc1: SelectedLocation, loc2: SelectedLocation) => {
+    const R = 6371; // Earth's radius in km
+    const lat1 = loc1.coordinates.lat * Math.PI / 180;
+    const lat2 = loc2.coordinates.lat * Math.PI / 180;
+    const dLat = (loc2.coordinates.lat - loc1.coordinates.lat) * Math.PI / 180;
+    const dLon = (loc2.coordinates.lng - loc1.coordinates.lng) * Math.PI / 180;
+
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const generateCompactTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    if (locations.length <= maxStops) return locations;
+    
+    const result: SelectedLocation[] = [locations[0]]; // Start with first location
+    
+    while (result.length < maxStops) {
+      let shortestDistance = Infinity;
+      let nextLocation: SelectedLocation | null = null;
+      const lastLocation = result[result.length - 1];
       
-      if (artwork && selectedArtist) {
-        setSelectedLocations([...selectedLocations, {
-          id: artwork.id,
-          title: artwork.title || 'Untitled',
-          artist: selectedArtist.name,
-          coordinates: {
-            lat: artwork.latitude,
-            lng: artwork.longitude
-          }
-        }]);
+      for (const location of locations) {
+        if (result.includes(location)) continue;
+        
+        const distance = calculateDistance(lastLocation, location);
+        if (distance < shortestDistance) {
+          shortestDistance = distance;
+          nextLocation = location;
+        }
+      }
+      
+      if (nextLocation) {
+        result.push(nextLocation);
       }
     }
     
-    // Reset selections for next artwork if not using surprise me
-    if (streetArt !== SURPRISE_ME) {
-      setNeighborhood('');
-      setArtist('');
-      setStreetArt('');
+    return result;
+  };
+
+  const generateDiverseTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    if (locations.length <= maxStops) return locations;
+    
+    // Group locations by artist
+    const artistGroups = locations.reduce((groups, location) => {
+      if (!groups[location.artist]) {
+        groups[location.artist] = [];
+      }
+      groups[location.artist].push(location);
+      return groups;
+    }, {} as Record<string, SelectedLocation[]>);
+    
+    const result: SelectedLocation[] = [];
+    const artists = Object.keys(artistGroups);
+    
+    // Take one piece from each artist until we reach maxStops
+    while (result.length < maxStops && Object.keys(artistGroups).length > 0) {
+      for (const artist of artists) {
+        if (result.length >= maxStops) break;
+        if (artistGroups[artist]?.length) {
+          result.push(artistGroups[artist].shift()!);
+        }
+      }
     }
+    
+    return result;
+  };
+
+  const generatePopularTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    // In the future, this would use actual popularity/rating data
+    // For now, randomly select locations as a fallback
+    return [...locations]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, maxStops);
+  };
+
+  const generateTourVariations = (
+    locations: SelectedLocation[],
+    maxStops: number
+  ): TourVariation[] => {
+    if (locations.length > maxStops) {
+      setNotificationMessage(
+        `We noticed you selected ${locations.length} locations for a ${tourLength}-minute tour. ` +
+        `We've created three different tour options that will fit within your time frame, ` +
+        `each optimized for a different experience.`
+      );
+    }
+
+    return [
+      {
+        name: 'Compact Tour',
+        description: 'Minimizes walking distance between locations',
+        locations: generateCompactTour(locations, maxStops)
+      },
+      {
+        name: 'Diverse Tour',
+        description: 'Features work from different artists',
+        locations: generateDiverseTour(locations, maxStops)
+      },
+      {
+        name: 'Popular Tour',
+        description: 'Based on ratings and popularity',
+        locations: generatePopularTour(locations, maxStops)
+      }
+    ];
   };
 
   const handleCreateTour = () => {
     if (!tourLength) return;
+    setNotificationMessage(null);
     
     const minutes = parseInt(tourLength);
-    let finalLocations = selectedLocations;
+    const maxStops = calculateMaxStops(minutes);
+    let tourVariations: TourVariation[];
 
-    // If using surprise me, generate locations now
-    if (streetArt === SURPRISE_ME || artist === SURPRISE_ME) {
-      finalLocations = generateSurpriseLocations(minutes);
+    if (selectedStreetArt.has(SURPRISE_ME) || selectedArtists.has(SURPRISE_ME)) {
+      // For surprise me, generate three different random variations
+      tourVariations = Array(3).fill(null).map((_, index) => ({
+        name: `Option ${index + 1}`,
+        description: 'A curated selection of street art',
+        locations: generateSurpriseLocations(minutes)
+      }));
+    } else {
+      // Generate three distinct variations based on different criteria
+      tourVariations = generateTourVariations(selectedLocations, maxStops);
     }
 
-    if (finalLocations.length > 0) {
+    if (tourVariations[0].locations.length > 0) {
       navigate('/tour-options', {
         state: {
-          locations: finalLocations,
+          tourVariations,
           duration: minutes
         }
       });
@@ -160,6 +347,11 @@ export default function TourCreate() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Build Your Tour</h1>
+      {notificationMessage && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-blue-800">{notificationMessage}</p>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-8">
           {/* Neighborhood Selection */}
@@ -175,8 +367,8 @@ export default function TourCreate() {
                   selected={neighborhood === n.id}
                   onClick={(id) => {
                     setNeighborhood(id);
-                    setArtist('');
-                    setStreetArt('');
+                    setSelectedArtists(new Set());
+                    setSelectedStreetArt(new Set());
                     setSelectedLocations([]);
                   }}
                 />
@@ -187,19 +379,20 @@ export default function TourCreate() {
           {/* Artist Selection */}
           {neighborhood && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Select an Artist</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                Select Artists
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  (Select multiple)
+                </span>
+              </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SelectionCard
                   id={SURPRISE_ME}
                   title="Surprise Me!"
                   subtitle="Let us pick artists for you"
-                  imageUrl="/surprise-artist.jpg"
-                  selected={artist === SURPRISE_ME}
-                  onClick={(id) => {
-                    setArtist(id);
-                    setStreetArt('');
-                    setSelectedLocations([]);
-                  }}
+                  imageUrl="https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg"
+                  selected={selectedArtists.has(SURPRISE_ME)}
+                  onClick={handleArtistToggle}
                 />
                 {filteredArtists
                   .filter(a => a.id !== SURPRISE_ME)
@@ -209,11 +402,8 @@ export default function TourCreate() {
                       id={a.id}
                       title={a.name}
                       imageUrl={a.hero_image}
-                      selected={artist === a.id}
-                      onClick={(id) => {
-                        setArtist(id);
-                        setStreetArt('');
-                      }}
+                      selected={selectedArtists.has(a.id)}
+                      onClick={handleArtistToggle}
                     />
                   ))}
               </div>
@@ -221,20 +411,22 @@ export default function TourCreate() {
           )}
 
           {/* Street Art Selection */}
-          {artist && (
+          {selectedArtists.size > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Select Street Art</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                Select Street Art
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  (Select multiple)
+                </span>
+              </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SelectionCard
                   id={SURPRISE_ME}
                   title="Surprise Me!"
                   subtitle="Let us pick street art for you"
-                  imageUrl="/surprise-art.jpg"
-                  selected={streetArt === SURPRISE_ME}
-                  onClick={(id) => {
-                    setStreetArt(id);
-                    setSelectedLocations([]);
-                  }}
+                  imageUrl="https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg"
+                  selected={selectedStreetArt.has(SURPRISE_ME)}
+                  onClick={handleStreetArtToggle}
                 />
                 {filteredStreetArt
                   .filter(art => art.id !== SURPRISE_ME)
@@ -245,23 +437,23 @@ export default function TourCreate() {
                       title={art.title || 'Untitled'}
                       imageUrl={art.image}
                       subtitle={allArtists.find(a => a.id === art.artist_id)?.name}
-                      selected={streetArt === art.id}
-                      onClick={(id) => setStreetArt(id)}
+                      selected={selectedStreetArt.has(art.id)}
+                      onClick={handleStreetArtToggle}
                     />
                   ))}
               </div>
               <button 
                 onClick={handleArtworkSelect}
-                disabled={!streetArt}
+                disabled={selectedStreetArt.size === 0}
                 className={`
                   mt-6 w-full p-3 rounded-lg text-white transition-colors
-                  ${!streetArt
+                  ${selectedStreetArt.size === 0
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-600'
                   }
                 `}
               >
-                {streetArt === SURPRISE_ME ? 'Continue to Tour Length' : 'Add to Tour'}
+                {selectedStreetArt.has(SURPRISE_ME) ? 'Continue to Tour Length' : 'Add to Tour'}
               </button>
             </div>
           )}
@@ -271,7 +463,7 @@ export default function TourCreate() {
         <div className="bg-gray-50 p-6 rounded-lg space-y-6">
           <div>
             <h2 className="text-xl font-semibold mb-4">Your Tour</h2>
-            {streetArt === SURPRISE_ME ? (
+            {selectedStreetArt.has(SURPRISE_ME) ? (
               <div className="bg-white p-4 rounded-lg shadow-sm">
                 <p className="text-gray-600 italic">
                   Your tour will be automatically generated based on your preferences
@@ -295,7 +487,7 @@ export default function TourCreate() {
             )}
           </div>
 
-          {(selectedLocations.length > 0 || streetArt === SURPRISE_ME) && (
+          {(selectedLocations.length > 0 || selectedStreetArt.has(SURPRISE_ME)) && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
