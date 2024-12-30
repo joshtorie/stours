@@ -4,6 +4,7 @@ import { useNeighborhoods } from '../hooks/useNeighborhoods';
 import { useArtists } from '../hooks/useArtists';
 import { useStreetArt } from '../hooks/useStreetArt';
 import type { Database } from '../types/supabase';
+import { SelectionCard } from '../components/ui/SelectionCard';
 
 type StreetArt = Database['public']['Tables']['street_art']['Row'];
 type Artist = Database['public']['Tables']['artists']['Row'];
@@ -159,119 +160,151 @@ export default function TourCreate() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Build Your Tour</h1>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          {/* Neighborhood Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select a Neighborhood
-            </label>
-            <select 
-              value={neighborhood} 
-              onChange={(e) => {
-                setNeighborhood(e.target.value);
-                setArtist('');
-                setStreetArt('');
-                setSelectedLocations([]);
-              }}
-              className="w-full p-2 border rounded"
-            >
-              <option value="">Select Neighborhood</option>
+            <h2 className="text-xl font-semibold mb-4">Select a Neighborhood</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {neighborhoods.map((n) => (
-                <option key={n.id} value={n.id}>{n.name}</option>
+                <SelectionCard
+                  key={n.id}
+                  id={n.id}
+                  title={n.name}
+                  imageUrl={n.hero_image}
+                  selected={neighborhood === n.id}
+                  onClick={(id) => {
+                    setNeighborhood(id);
+                    setArtist('');
+                    setStreetArt('');
+                    setSelectedLocations([]);
+                  }}
+                />
               ))}
-            </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select an Artist
-            </label>
-            <select 
-              value={artist} 
-              onChange={(e) => {
-                setArtist(e.target.value);
-                setStreetArt('');
-                if (e.target.value === SURPRISE_ME) {
-                  setSelectedLocations([]);
-                }
-              }}
-              className="w-full p-2 border rounded"
-              disabled={!neighborhood}
-            >
-              <option value="">Select Artist</option>
-              {filteredArtists.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Artist Selection */}
+          {neighborhood && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Select an Artist</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SelectionCard
+                  id={SURPRISE_ME}
+                  title="Surprise Me!"
+                  subtitle="Let us pick artists for you"
+                  imageUrl="/surprise-artist.jpg"
+                  selected={artist === SURPRISE_ME}
+                  onClick={(id) => {
+                    setArtist(id);
+                    setStreetArt('');
+                    setSelectedLocations([]);
+                  }}
+                />
+                {filteredArtists
+                  .filter(a => a.id !== SURPRISE_ME)
+                  .map((a) => (
+                    <SelectionCard
+                      key={a.id}
+                      id={a.id}
+                      title={a.name}
+                      imageUrl={a.hero_image}
+                      selected={artist === a.id}
+                      onClick={(id) => {
+                        setArtist(id);
+                        setStreetArt('');
+                      }}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Street Art
-            </label>
-            <select 
-              value={streetArt} 
-              onChange={(e) => {
-                setStreetArt(e.target.value);
-                if (e.target.value === SURPRISE_ME) {
-                  setSelectedLocations([]);
-                }
-              }}
-              className="w-full p-2 border rounded"
-              disabled={!artist}
-            >
-              <option value="">Select Street Art</option>
-              {filteredStreetArt.map((art) => (
-                <option key={art.id} value={art.id}>
-                  {art.id === SURPRISE_ME ? art.title : art.title || 'Untitled'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button 
-            onClick={handleArtworkSelect}
-            disabled={!streetArt}
-            className={`mt-4 p-2 rounded text-white transition-colors ${
-              !streetArt
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-500 hover:bg-blue-600'
-            }`}
-          >
-            {streetArt === SURPRISE_ME ? 'Continue to Tour Length' : 'Add to Tour'}
-          </button>
+          {/* Street Art Selection */}
+          {artist && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Select Street Art</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SelectionCard
+                  id={SURPRISE_ME}
+                  title="Surprise Me!"
+                  subtitle="Let us pick street art for you"
+                  imageUrl="/surprise-art.jpg"
+                  selected={streetArt === SURPRISE_ME}
+                  onClick={(id) => {
+                    setStreetArt(id);
+                    setSelectedLocations([]);
+                  }}
+                />
+                {filteredStreetArt
+                  .filter(art => art.id !== SURPRISE_ME)
+                  .map((art) => (
+                    <SelectionCard
+                      key={art.id}
+                      id={art.id}
+                      title={art.title || 'Untitled'}
+                      imageUrl={art.image}
+                      subtitle={allArtists.find(a => a.id === art.artist_id)?.name}
+                      selected={streetArt === art.id}
+                      onClick={(id) => setStreetArt(id)}
+                    />
+                  ))}
+              </div>
+              <button 
+                onClick={handleArtworkSelect}
+                disabled={!streetArt}
+                className={`
+                  mt-6 w-full p-3 rounded-lg text-white transition-colors
+                  ${!streetArt
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600'
+                  }
+                `}
+              >
+                {streetArt === SURPRISE_ME ? 'Continue to Tour Length' : 'Add to Tour'}
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col">
-          <h2 className="text-lg font-semibold mb-4">Selected Locations</h2>
-          <div className="flex-grow">
+        {/* Right Column - Selected Items & Tour Length */}
+        <div className="bg-gray-50 p-6 rounded-lg space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Your Tour</h2>
             {streetArt === SURPRISE_ME ? (
-              <p className="text-gray-600 italic">
-                Your tour will be automatically generated based on your preferences
-                and selected tour length.
-              </p>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <p className="text-gray-600 italic">
+                  Your tour will be automatically generated based on your preferences
+                  and selected tour length.
+                </p>
+              </div>
             ) : (
-              <ul className="space-y-2">
+              <div className="space-y-4">
                 {selectedLocations.map((location, index) => (
-                  <li key={index} className="border p-3 rounded shadow-sm">
-                    <p><span className="font-medium">Title:</span> {location.title}</p>
-                    <p><span className="font-medium">Artist:</span> {location.artist}</p>
-                  </li>
+                  <div key={index} className="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 className="font-medium">{location.title}</h3>
+                    <p className="text-gray-600 text-sm mt-1">by {location.artist}</p>
+                  </div>
                 ))}
-              </ul>
+                {selectedLocations.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">
+                    No locations selected yet
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
           {(selectedLocations.length > 0 || streetArt === SURPRISE_ME) && (
-            <div className="mt-4 space-y-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tour Length
                 </label>
                 <select 
                   value={tourLength} 
                   onChange={(e) => setTourLength(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-3 border rounded-lg bg-white"
                 >
                   <option value="">Select Tour Length</option>
                   <option value="30">30 minutes (up to 5 stops)</option>
@@ -284,11 +317,13 @@ export default function TourCreate() {
               <button 
                 onClick={handleCreateTour}
                 disabled={!tourLength}
-                className={`w-full p-2 rounded text-white transition-colors ${
-                  !tourLength
+                className={`
+                  w-full p-3 rounded-lg text-white transition-colors
+                  ${!tourLength
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-green-500 hover:bg-green-600'
-                }`}
+                  }
+                `}
               >
                 Create My Tour
               </button>
