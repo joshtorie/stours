@@ -1,48 +1,67 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { GoogleMap, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
 
-const suggestedRoutes = [
-  { 
-    name: 'Scenic Route', 
-    time: '30 minutes', 
-    details: [],
-    description: 'A beautiful walk through the neighborhood\'s highlights'
-  },
-  { 
-    name: 'Direct Route', 
-    time: '45 minutes', 
-    details: [],
-    description: 'The most efficient path to see all selected artwork'
-  },
-  { 
-    name: 'Explorer Route', 
-    time: '1 hour', 
-    details: [],
-    description: 'A comprehensive tour including nearby points of interest'
-  },
-];
+interface Location {
+  id: string;
+  title: string;
+  artist: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+}
+
+interface RouteOption {
+  name: string;
+  waypoints: Location[];
+  estimatedTime: number;
+  distance: string;
+}
 
 export default function TourOptions() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedOptions } = location.state || { selectedOptions: [] };
+  const { locations, duration } = location.state || { locations: [], duration: 0 };
 
-  // Generate suggested routes based on selected options
-  const routes = suggestedRoutes.map(route => ({
-    ...route,
-    details: selectedOptions.map(opt => opt.streetArt),
-  }));
+  // Generate different route options based on the locations
+  const generateRouteOptions = (locations: Location[], duration: number): RouteOption[] => {
+    // Here you would implement your route optimization logic
+    // For now, we'll create simple variations
+    return [
+      {
+        name: 'Shortest Route',
+        waypoints: [...locations],
+        estimatedTime: Math.floor(duration * 0.8),
+        distance: '2.5 km'
+      },
+      {
+        name: 'Scenic Route',
+        waypoints: [...locations].reverse(),
+        estimatedTime: duration,
+        distance: '3.2 km'
+      },
+      {
+        name: 'Popular Route',
+        waypoints: [...locations].sort(() => Math.random() - 0.5),
+        estimatedTime: Math.floor(duration * 1.2),
+        distance: '3.8 km'
+      }
+    ];
+  };
 
-  const handleRouteSelect = (route) => {
+  const routeOptions = generateRouteOptions(locations, parseInt(duration));
+
+  const handleRouteSelect = (route: RouteOption) => {
     navigate('/tour-page', { 
       state: { 
-        route,
-        selectedOptions 
+        selectedRoute: route,
+        locations: route.waypoints
       } 
     });
   };
 
-  if (selectedOptions.length === 0) {
+  if (locations.length === 0) {
     return (
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4">No Tour Options Available</h1>
@@ -55,15 +74,17 @@ export default function TourOptions() {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Select Your Tour Route</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {routes.map((route, index) => (
+        {routeOptions.map((route, index) => (
           <div key={index} className="border p-4 rounded shadow-lg hover:shadow-xl transition-shadow">
             <h2 className="text-xl font-semibold mb-2">{route.name}</h2>
-            <p className="text-gray-600 mb-2">Estimated Time: {route.time}</p>
-            <p className="text-gray-600 mb-4">{route.description}</p>
-            <h3 className="font-medium mb-2">Includes:</h3>
+            <p className="text-gray-600 mb-2">Estimated Time: {route.estimatedTime} minutes</p>
+            <p className="text-gray-600 mb-4">Distance: {route.distance}</p>
+            <h3 className="font-medium mb-2">Stops:</h3>
             <ul className="list-disc pl-5 mb-4">
-              {route.details.map((detail, idx) => (
-                <li key={idx} className="text-gray-700">{detail}</li>
+              {route.waypoints.map((location, idx) => (
+                <li key={idx} className="text-gray-700">
+                  {location.title} by {location.artist}
+                </li>
               ))}
             </ul>
             <button 
