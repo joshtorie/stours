@@ -7,6 +7,9 @@ import NeighborhoodPage from './pages/NeighborhoodPage';
 import ArtistPage from './pages/ArtistPage';
 import StreetArtPage from './pages/StreetArtPage';
 import AdminPage from './pages/AdminPage';
+import TourCreate from './pages/TourCreate';
+import TourOptions from './pages/TourOptions';
+import TourPage from './pages/TourPage';
 
 export default function App() {
   return (
@@ -20,6 +23,9 @@ export default function App() {
           <Route path="/artists/:id" element={<ArtistPage />} />
           <Route path="/street-art/:id" element={<StreetArtPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/tour-create" element={<TourCreate />} />
+          <Route path="/tour-options" element={<TourOptions />} />
+          <Route path="/tour-page" element={<TourPage />} />
         </Routes>
       </div>
     </Router>
