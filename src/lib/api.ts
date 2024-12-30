@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-
+// Mock data types
 export interface Neighborhood {
   id: string;
   name: string;
@@ -18,44 +15,100 @@ export interface StreetArt {
   id: string;
   title: string;
   artist_id: string;
+  artist: string;
   neighborhood_id: string;
-  location: {
+  coordinates: {
     lat: number;
     lng: number;
   };
 }
 
-// Fetch all neighborhoods
+// Mock data
+const mockNeighborhoods: Neighborhood[] = [
+  { id: 'n1', name: 'Downtown', city: 'Cape Town' },
+  { id: 'n2', name: 'Woodstock', city: 'Cape Town' },
+  { id: 'n3', name: 'Observatory', city: 'Cape Town' }
+];
+
+const mockArtists: { [key: string]: Artist[] } = {
+  'n1': [
+    { id: 'a1', name: 'Faith47', neighborhood_ids: ['n1', 'n2'] },
+    { id: 'a2', name: 'Falko One', neighborhood_ids: ['n1'] }
+  ],
+  'n2': [
+    { id: 'a3', name: 'Jack Fox', neighborhood_ids: ['n2'] },
+    { id: 'a1', name: 'Faith47', neighborhood_ids: ['n1', 'n2'] }
+  ],
+  'n3': [
+    { id: 'a4', name: 'Dal East', neighborhood_ids: ['n3'] }
+  ]
+};
+
+const mockStreetArt: { [key: string]: StreetArt[] } = {
+  'a1': [
+    {
+      id: 'sa1',
+      title: 'The Guardian',
+      artist_id: 'a1',
+      artist: 'Faith47',
+      neighborhood_id: 'n1',
+      coordinates: { lat: -33.92543, lng: 18.42322 }
+    },
+    {
+      id: 'sa2',
+      title: 'Freedom',
+      artist_id: 'a1',
+      artist: 'Faith47',
+      neighborhood_id: 'n2',
+      coordinates: { lat: -33.92789, lng: 18.42567 }
+    }
+  ],
+  'a2': [
+    {
+      id: 'sa3',
+      title: 'Colorful Elephant',
+      artist_id: 'a2',
+      artist: 'Falko One',
+      neighborhood_id: 'n1',
+      coordinates: { lat: -33.92111, lng: 18.42111 }
+    }
+  ],
+  'a3': [
+    {
+      id: 'sa4',
+      title: 'Urban Life',
+      artist_id: 'a3',
+      artist: 'Jack Fox',
+      neighborhood_id: 'n2',
+      coordinates: { lat: -33.92999, lng: 18.42888 }
+    }
+  ],
+  'a4': [
+    {
+      id: 'sa5',
+      title: 'Bird in Flight',
+      artist_id: 'a4',
+      artist: 'Dal East',
+      neighborhood_id: 'n3',
+      coordinates: { lat: -33.93456, lng: 18.43222 }
+    }
+  ]
+};
+
+// API functions
 export const getNeighborhoods = async (): Promise<Neighborhood[]> => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/neighborhoods`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching neighborhoods:', error);
-    return [];
-  }
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return mockNeighborhoods;
 };
 
-// Fetch artists by neighborhood
 export const getArtistsByNeighborhood = async (neighborhoodId: string): Promise<Artist[]> => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/artists?neighborhood=${neighborhoodId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching artists:', error);
-    return [];
-  }
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return mockArtists[neighborhoodId] || [];
 };
 
-// Fetch street art by artist and neighborhood
 export const getStreetArtByArtist = async (artistId: string, neighborhoodId: string): Promise<StreetArt[]> => {
-  try {
-    const response = await axios.get(
-      `${API_BASE_URL}/street-art?artist=${artistId}&neighborhood=${neighborhoodId}`
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching street art:', error);
-    return [];
-  }
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const artworks = mockStreetArt[artistId] || [];
+  return artworks.filter(art => art.neighborhood_id === neighborhoodId);
 };

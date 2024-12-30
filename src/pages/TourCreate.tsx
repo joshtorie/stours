@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getNeighborhoods, getArtistsByNeighborhood, getStreetArtByArtist } from '../lib/api';
-import type { Neighborhood, Artist, StreetArt } from '../lib/api';
+import { useNeighborhoods } from '../hooks/useNeighborhoods';
+import { useArtists } from '../hooks/useArtists';
+import { useStreetArt } from '../hooks/useStreetArt';
+import type { Database } from '../types/supabase';
+
+type StreetArt = Database['public']['Tables']['street_art']['Row'];
+type Artist = Database['public']['Tables']['artists']['Row'];
+type Neighborhood = Database['public']['Tables']['neighborhoods']['Row'];
 
 interface SelectedLocation {
   id: string;
@@ -16,68 +22,45 @@ interface SelectedLocation {
 export default function TourCreate() {
   const navigate = useNavigate();
   
-  // State for selections
+  // State for form selections
   const [neighborhood, setNeighborhood] = useState('');
   const [artist, setArtist] = useState('');
   const [streetArt, setStreetArt] = useState('');
   const [tourLength, setTourLength] = useState('');
+  
+  // State for selected locations
   const [selectedLocations, setSelectedLocations] = useState<SelectedLocation[]>([]);
-  const [streetArts, setStreetArts] = useState<StreetArt[]>([]);
 
-  // State for data
-  const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const tourLengths = ['30 minutes', '1 hour', '1.5 hours', '2 hours'];
+  // Fetch data using hooks
+  const { neighborhoods, loading: loadingNeighborhoods } = useNeighborhoods();
+  const { artists: allArtists, loading: loadingArtists } = useArtists();
+  const { streetArt: streetArtworks, loading: loadingStreetArt } = useStreetArt({
+    artistId: artist,
+    neighborhoodId: neighborhood
+  });
 
-  // Fetch neighborhoods on component mount
-  useEffect(() => {
-    const fetchNeighborhoods = async () => {
-      const data = await getNeighborhoods();
-      setNeighborhoods(data);
-    };
-    fetchNeighborhoods();
-  }, []);
-
-  // Fetch artists when neighborhood is selected
-  useEffect(() => {
-    const fetchArtists = async () => {
-      if (neighborhood) {
-        const data = await getArtistsByNeighborhood(neighborhood);
-        setArtists(data);
-        setArtist(''); // Reset artist selection
-        setStreetArt(''); // Reset street art selection
-      } else {
-        setArtists([]);
-      }
-    };
-    fetchArtists();
-  }, [neighborhood]);
-
-  // Fetch street art when artist is selected
-  useEffect(() => {
-    const fetchStreetArt = async () => {
-      if (artist && neighborhood) {
-        const data = await getStreetArtByArtist(artist, neighborhood);
-        setStreetArts(data);
-        setStreetArt(''); // Reset street art selection
-      } else {
-        setStreetArts([]);
-      }
-    };
-    fetchStreetArt();
-  }, [artist, neighborhood]);
+  // Filter artists by neighborhood
+  const filteredArtists = neighborhood
+    ? allArtists.filter(a => a.neighborhood_id === neighborhood)
+    : [];
 
   const handleArtworkSelect = () => {
-    if (streetArt && artist) {
-      const artwork = streetArts.find(s => s.id === streetArt);
-      if (artwork) {
+    if (streetArt) {
+      const artwork = streetArtworks.find(art => art.id === streetArt);
+      const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
+      
+      if (artwork && selectedArtist) {
         setSelectedLocations([...selectedLocations, {
           id: artwork.id,
-          title: artwork.title,
-          artist: artwork.artist,
-          coordinates: artwork.coordinates
+          title: artwork.title || 'Untitled',
+          artist: selectedArtist.name,
+          coordinates: {
+            lat: artwork.latitude,
+            lng: artwork.longitude
+          }
         }]);
       }
+      
       // Reset selections for next artwork
       setNeighborhood('');
       setArtist('');
@@ -91,11 +74,15 @@ export default function TourCreate() {
       navigate('/tour-options', {
         state: {
           locations: selectedLocations,
-          duration: tourLength
+          duration: parseInt(tourLength)
         }
       });
     }
   };
+
+  if (loadingNeighborhoods || loadingArtists || loadingStreetArt) {
+    return <div className="container mx-auto p-4">Loading...</div>;
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -103,7 +90,9 @@ export default function TourCreate() {
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select a Neighborhood</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Select a Neighborhood
+            </label>
             <select 
               value={neighborhood} 
               onChange={(e) => setNeighborhood(e.target.value)}
@@ -117,7 +106,9 @@ export default function TourCreate() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select an Artist</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Select an Artist
+            </label>
             <select 
               value={artist} 
               onChange={(e) => setArtist(e.target.value)}
@@ -125,14 +116,16 @@ export default function TourCreate() {
               disabled={!neighborhood}
             >
               <option value="">Select Artist</option>
-              {artists.map((a) => (
+              {filteredArtists.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Street Art</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Select Street Art
+            </label>
             <select 
               value={streetArt} 
               onChange={(e) => setStreetArt(e.target.value)}
@@ -140,8 +133,8 @@ export default function TourCreate() {
               disabled={!artist}
             >
               <option value="">Select Street Art</option>
-              {streetArts.map((s) => (
-                <option key={s.id} value={s.id}>{s.title}</option>
+              {streetArtworks.map((art) => (
+                <option key={art.id} value={art.id}>{art.title || 'Untitled'}</option>
               ))}
             </select>
           </div>
@@ -184,9 +177,10 @@ export default function TourCreate() {
                   className="w-full p-2 border rounded"
                 >
                   <option value="">Select Tour Length</option>
-                  {tourLengths.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                  <option value="90">1.5 hours</option>
+                  <option value="120">2 hours</option>
                 </select>
               </div>
 
