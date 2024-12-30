@@ -12,13 +12,18 @@ export function Navbar() {
             <img src={logo} alt="Street Art Tours Logo" className="h-10 w-auto" />
           </Link>
           
-          <Link 
-            to="/admin" 
-            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-            title="Admin Dashboard"
-          >
-            <Settings className="w-6 h-6" />
-          </Link>
+          <div className="flex items-center space-x-4">
+            <Link to="/tour-create" className="p-2 text-gray-600 hover:text-gray-900 transition-colors">
+              Build Your Tour
+            </Link>
+            <Link 
+              to="/admin" 
+              className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+              title="Admin Dashboard"
+            >
+              <Settings className="w-6 h-6" />
+            </Link>
+          </div>
         </div>
       </div>
     </nav>
