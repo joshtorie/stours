@@ -110,10 +110,18 @@ export default function YourTour() {
               {directionsResult && (
                 <DirectionsRenderer
                   options={{
-                    directions: directionsResult,
+                    directions: {
+                      ...directionsResult,
+                      request: {
+                        travelMode: google.maps.TravelMode.WALKING,
+                        destination: directionsResult.routes[0].legs[0].end_location,
+                        origin: directionsResult.routes[0].legs[0].start_location,
+                      }
+                    },
                     suppressMarkers: false,
                     markerOptions: {
                       label: {
+                        text: '',
                         color: 'white',
                         fontWeight: 'bold'
                       }
