@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import logo from '../../assets/STreet ART TOuRS.png';
 
 export function Navbar() {
   return (
@@ -10,7 +11,7 @@ export function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
             <img
-              src="/logo.png"
+              src={logo}
               alt="Street Tours Logo"
               className="h-8 w-auto"
             />
@@ -28,7 +29,7 @@ export function Navbar() {
                 text-sm sm:text-base
                 mx-2 sm:mx-0"
             >
-              <span className="hidden sm:inline">Build Your</span>
+              <span className="hidden sm:inline">New</span>
               <span>Tour</span>
             </Link>
           </div>
