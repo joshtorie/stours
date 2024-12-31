@@ -15,6 +15,9 @@ export default function YourTour() {
   const navigate = useNavigate();
   const { selectedRoute: tour, duration } = location.state as TourState;
   const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
+  const [userLocation, setUserLocation] = React.useState<google.maps.LatLng | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = React.useState<number>(0);
+  const [isPaused, setIsPaused] = React.useState<boolean>(false);
 
   // Convert serialized response back to DirectionsResult
   const directionsResult = React.useMemo(() => {
@@ -40,6 +43,53 @@ export default function YourTour() {
       })),
     };
   }, [tour]);
+
+  // Watch user's location
+  React.useEffect(() => {
+    if (!navigator.geolocation) {
+      console.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setUserLocation(new google.maps.LatLng(
+          position.coords.latitude,
+          position.coords.longitude
+        ));
+
+        // Update current step based on user location if tour is not paused
+        if (!isPaused && tour?.response) {
+          const leg = tour.response.routes[0].legs[0];
+          // Find the closest step to the user's current location
+          const closestStepIndex = leg.steps.findIndex((step, index) => {
+            const stepPath = step.path?.[0];
+            if (!stepPath) return false;
+            const distance = google.maps.geometry.spherical.computeDistanceBetween(
+              new google.maps.LatLng(stepPath.lat, stepPath.lng),
+              new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
+            );
+            return distance < 50; // Within 50 meters
+          });
+          if (closestStepIndex !== -1) {
+            setCurrentStepIndex(closestStepIndex);
+          }
+        }
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [tour, isPaused]);
 
   if (!tour || !tour.response) {
     return (
@@ -104,6 +154,21 @@ export default function YourTour() {
                     )}
                   </div>
                 </InfoWindow>
+              )}
+
+              {/* Display user location */}
+              {userLocation && (
+                <MarkerF
+                  position={userLocation}
+                  icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: "#4285F4",
+                    fillOpacity: 1,
+                    strokeColor: "#FFFFFF",
+                    strokeWeight: 2,
+                  }}
+                />
               )}
 
               {/* Display the route */}
@@ -183,20 +248,77 @@ export default function YourTour() {
 
             <div>
               <h2 className="text-xl font-semibold mb-4">Walking Directions</h2>
+              <div className="flex justify-end mb-4 space-x-4">
+                <button
+                  onClick={() => setIsPaused(!isPaused)}
+                  className={`px-4 py-2 rounded-lg ${
+                    isPaused ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'
+                  } text-white`}
+                >
+                  {isPaused ? 'Resume Tour' : 'Pause Tour'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to complete this tour?')) {
+                      navigate('/');
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Complete Tour
+                </button>
+              </div>
               <div className="space-y-4">
-                {leg.steps.map((step, index) => (
-                  <div key={index} className="flex items-start">
-                    <div className="bg-gray-200 text-gray-700 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
-                      <p className="text-sm text-gray-600 mt-1">
-                        {step.distance?.text} · {step.duration?.text}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                {leg.steps.map((step, index) => {
+                  const isArtStop = tour.locations.some(loc => 
+                    google.maps.geometry.spherical.computeDistanceBetween(
+                      new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
+                      step.path?.[0] || new google.maps.LatLng(0, 0)
+                    ) < 50
+                  );
+                  
+                  const artLocation = tour.locations.find(loc => 
+                    google.maps.geometry.spherical.computeDistanceBetween(
+                      new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
+                      step.path?.[0] || new google.maps.LatLng(0, 0)
+                    ) < 50
+                  );
+
+                  return (
+                    <React.Fragment key={index}>
+                      {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
+                      <div className={`flex items-start p-4 rounded-lg ${
+                        currentStepIndex === index ? 'bg-blue-50 border-2 border-blue-500' : ''
+                      }`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3 ${
+                          currentStepIndex === index ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
+                          <p className="text-sm text-gray-600 mt-1">
+                            {step.distance?.text} · {step.duration?.text}
+                          </p>
+                        </div>
+                      </div>
+                      {isArtStop && artLocation && (
+                        <div className="ml-9 mt-2 mb-4 bg-white rounded-lg shadow-lg p-4">
+                          <h3 className="font-bold text-lg mb-2">{artLocation.title}</h3>
+                          <p className="text-gray-600 mb-2">by {artLocation.artist}</p>
+                          {artLocation.image && (
+                            <img
+                              src={artLocation.image}
+                              alt={artLocation.title}
+                              className="w-full h-48 object-cover rounded"
+                            />
+                          )}
+                        </div>
+                      )}
+                      {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           </div>
