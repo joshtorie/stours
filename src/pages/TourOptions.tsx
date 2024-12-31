@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { GoogleMap, DirectionsService, DirectionsRenderer, MarkerF } from '@react-google-maps/api';
 import { DEFAULT_MAP_OPTIONS } from '../config/maps';
@@ -75,10 +75,22 @@ export default function TourOptions() {
     status: google.maps.DirectionsStatus,
     index: number
   ) => {
+    console.log(`[TourOptions] Directions callback for tour ${index}:`, {
+      status,
+      hasResponse: !!response,
+      tourName: tourVariations[index].name
+    });
+
     if (status === 'OK' && response) {
       const route = response.routes[0];
       const leg = route.legs[0];
       
+      console.log(`[TourOptions] Processing route for tour ${index}:`, {
+        duration: leg.duration?.value,
+        distance: leg.distance?.text,
+        steps: leg.steps?.length
+      });
+
       setTourVariations(prev => {
         const updated = [...prev];
         updated[index] = {
@@ -90,7 +102,11 @@ export default function TourOptions() {
         return updated;
       });
     } else {
-      console.error('Directions request failed:', status);
+      console.error(`[TourOptions] Directions request failed for tour ${index}:`, {
+        status,
+        errorType: status === 'ZERO_RESULTS' ? 'No route found' : 'API Error',
+        locations: tourVariations[index].locations.length
+      });
     }
     
     setCalculatingRoutes(prev => {
@@ -98,9 +114,27 @@ export default function TourOptions() {
       next.delete(index);
       return next;
     });
-  }, []);
+
+    // Log current state after update
+    console.log('[TourOptions] Current state after callback:', {
+      calculatingRoutes: Array.from(calculatingRoutes),
+      completedTours: tourVariations.filter(t => t.response).length,
+      totalTours: tourVariations.length
+    });
+  }, [tourVariations, calculatingRoutes]);
 
   const requestDirections = useCallback((variation: TourVariation, index: number) => {
+    console.log(`[TourOptions] Requesting directions for tour ${index}:`, {
+      name: variation.name,
+      locations: variation.locations.length,
+      hasResponse: !!variation.response
+    });
+
+    if (!window.google) {
+      console.error('[TourOptions] Google Maps not loaded yet');
+      return;
+    }
+
     setCalculatingRoutes(prev => {
       const next = new Set(prev);
       next.add(index);
@@ -108,14 +142,90 @@ export default function TourOptions() {
     });
   }, []);
 
-  const handleRouteSelect = (index: number) => {
-    setSelectedVariation(index);
-    navigate('/tour-page', { 
-      state: { 
-        selectedRoute: tourVariations[index],
-        duration
-      } 
+  // Log state changes
+  useEffect(() => {
+    console.log('[TourOptions] State updated:', {
+      tourVariations: tourVariations.map(t => ({
+        name: t.name,
+        hasResponse: !!t.response,
+        locations: t.locations.length
+      })),
+      calculatingRoutes: Array.from(calculatingRoutes),
+      selectedVariation
     });
+  }, [tourVariations, calculatingRoutes, selectedVariation]);
+
+  const generateCompactTour = (locations: Location[], maxStops: number) => {
+    // Sort locations by proximity to first location
+    const sorted = [...locations].sort((a, b) => {
+      const distA = calculateDistance(locations[0].coordinates, a.coordinates);
+      const distB = calculateDistance(locations[0].coordinates, b.coordinates);
+      return distA - distB;
+    });
+    return sorted.slice(0, maxStops);
+  };
+
+  const generateDiverseTour = (locations: Location[], maxStops: number) => {
+    // Group by artist and select one from each until maxStops
+    const byArtist = locations.reduce((acc, loc) => {
+      if (!acc[loc.artist]) acc[loc.artist] = [];
+      acc[loc.artist].push(loc);
+      return acc;
+    }, {} as Record<string, Location[]>);
+
+    const diverse: Location[] = [];
+    const artists = Object.keys(byArtist);
+    let currentIndex = 0;
+
+    while (diverse.length < maxStops && currentIndex < artists.length) {
+      const artist = artists[currentIndex];
+      if (byArtist[artist].length > 0) {
+        diverse.push(byArtist[artist].shift()!);
+      }
+      currentIndex = (currentIndex + 1) % artists.length;
+    }
+
+    return diverse;
+  };
+
+  const generatePopularTour = (locations: Location[], maxStops: number) => {
+    // For now, randomly shuffle since we don't have popularity data
+    return shuffleArray(locations).slice(0, maxStops);
+  };
+
+  // Helper function to calculate distance between two points
+  const calculateDistance = (p1: Coordinates, p2: Coordinates) => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = p1.lat * Math.PI / 180;
+    const φ2 = p2.lat * Math.PI / 180;
+    const Δφ = (p2.lat - p1.lat) * Math.PI / 180;
+    const Δλ = (p2.lng - p1.lng) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  };
+
+  // Helper function to shuffle an array
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const newArray = [...array];
+    for (let i = newArray.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    }
+    return newArray;
+  };
+
+  const handleRouteSelect = (index: number) => {
+    const selectedRoute = tourVariations[index];
+    if (!selectedRoute.response) {
+      console.error('Cannot select route without directions response');
+      return;
+    }
+    navigate('/tour', { state: { selectedRoute, duration } });
   };
 
   if (tourVariations.length === 0) {

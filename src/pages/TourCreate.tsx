@@ -162,38 +162,127 @@ export default function TourCreate() {
     }
   };
 
-  const generateSurpriseLocations = (minutes: number) => {
-    const maxStops = Math.floor(minutes / (MINUTES_PER_STOP * 2));
-    let availableArt = [...allStreetArt];
+  const handleCreateTour = () => {
+    if (!tourLength) return;
+    setNotificationMessage(null);
     
-    // If specific artists are selected (and not surprise_me), filter by artists
-    if (!selectedArtists.has(SURPRISE_ME) && selectedArtists.size > 0) {
-      availableArt = availableArt.filter(art => selectedArtists.has(art.artist_id));
+    const minutes = parseInt(tourLength);
+    const maxStops = calculateMaxStops(minutes);
+
+    // Generate locations based on selections
+    let locations: SelectedLocation[] = [];
+    
+    if (selectedArtists.has(SURPRISE_ME) && selectedStreetArt.has(SURPRISE_ME)) {
+      // Both are surprise me - generate completely random selections
+      locations = generateRandomLocations(maxStops);
+    } else if (selectedArtists.has(SURPRISE_ME)) {
+      // Random artists, specific street art
+      const selectedArt = Array.from(selectedStreetArt).filter(id => id !== SURPRISE_ME);
+      locations = generateLocationsWithRandomArtists(selectedArt, maxStops);
+    } else if (selectedStreetArt.has(SURPRISE_ME)) {
+      // Specific artists, random street art
+      const selectedArtistIds = Array.from(selectedArtists).filter(id => id !== SURPRISE_ME);
+      locations = generateLocationsWithRandomArt(selectedArtistIds, maxStops);
+    } else {
+      // Specific selections for both
+      locations = selectedLocations;
     }
 
-    // Randomly select street art up to maxStops
-    const selectedArt = [];
-    while (selectedArt.length < maxStops && availableArt.length > 0) {
-      const randomIndex = Math.floor(Math.random() * availableArt.length);
-      const artwork = availableArt[randomIndex];
-      const artArtist = allArtists.find(a => a.id === artwork.artist_id);
-      
-      if (artArtist) {
-        selectedArt.push({
-          id: artwork.id,
-          title: artwork.title || 'Untitled',
-          artist: artArtist.name,
-          coordinates: {
-            lat: artwork.latitude,
-            lng: artwork.longitude
-          }
-        });
+    // Generate three different variations of the tour
+    const tourVariations = [
+      {
+        name: 'Compact Tour',
+        description: 'Minimizes walking distance between locations',
+        locations: generateCompactTour([...locations], maxStops)
+      },
+      {
+        name: 'Diverse Tour',
+        description: 'Features work from different artists',
+        locations: generateDiverseTour([...locations], maxStops)
+      },
+      {
+        name: 'Popular Tour',
+        description: 'Based on ratings and popularity',
+        locations: generatePopularTour([...locations], maxStops)
       }
-      
-      availableArt.splice(randomIndex, 1);
-    }
+    ];
 
-    return selectedArt;
+    if (tourVariations[0].locations.length > 0) {
+      navigate('/tour-options', {
+        state: {
+          tourVariations,
+          duration: minutes
+        }
+      });
+    }
+  };
+
+  const generateRandomLocations = (maxStops: number): SelectedLocation[] => {
+    // Get all available street art for the selected neighborhood
+    const availableArt = allStreetArt.filter(art => art.neighborhood_id === neighborhood);
+    
+    // Randomly select up to maxStops pieces
+    return shuffleArray(availableArt)
+      .slice(0, maxStops)
+      .map(art => ({
+        id: art.id,
+        title: art.title,
+        artist: art.artist_name,
+        coordinates: {
+          lat: art.latitude,
+          lng: art.longitude
+        }
+      }));
+  };
+
+  const generateLocationsWithRandomArtists = (selectedArtIds: string[], maxStops: number): SelectedLocation[] => {
+    // Get all available street art for selected pieces
+    const selectedArt = allStreetArt.filter(art => 
+      art.neighborhood_id === neighborhood && 
+      selectedArtIds.includes(art.id)
+    );
+    
+    return shuffleArray(selectedArt)
+      .slice(0, maxStops)
+      .map(art => ({
+        id: art.id,
+        title: art.title,
+        artist: art.artist_name,
+        coordinates: {
+          lat: art.latitude,
+          lng: art.longitude
+        }
+      }));
+  };
+
+  const generateLocationsWithRandomArt = (artistIds: string[], maxStops: number): SelectedLocation[] => {
+    // Get all available street art by selected artists
+    const availableArt = allStreetArt.filter(art => 
+      art.neighborhood_id === neighborhood && 
+      artistIds.includes(art.artist_id)
+    );
+    
+    return shuffleArray(availableArt)
+      .slice(0, maxStops)
+      .map(art => ({
+        id: art.id,
+        title: art.title,
+        artist: art.artist_name,
+        coordinates: {
+          lat: art.latitude,
+          lng: art.longitude
+        }
+      }));
+  };
+
+  // Helper function to shuffle an array
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const newArray = [...array];
+    for (let i = newArray.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    }
+    return newArray;
   };
 
   const calculateMaxStops = (minutes: number) => {
@@ -308,36 +397,6 @@ export default function TourCreate() {
         locations: generatePopularTour(locations, maxStops)
       }
     ];
-  };
-
-  const handleCreateTour = () => {
-    if (!tourLength) return;
-    setNotificationMessage(null);
-    
-    const minutes = parseInt(tourLength);
-    const maxStops = calculateMaxStops(minutes);
-    let tourVariations: TourVariation[];
-
-    if (selectedStreetArt.has(SURPRISE_ME) || selectedArtists.has(SURPRISE_ME)) {
-      // For surprise me, generate three different random variations
-      tourVariations = Array(3).fill(null).map((_, index) => ({
-        name: `Option ${index + 1}`,
-        description: 'A curated selection of street art',
-        locations: generateSurpriseLocations(minutes)
-      }));
-    } else {
-      // Generate three distinct variations based on different criteria
-      tourVariations = generateTourVariations(selectedLocations, maxStops);
-    }
-
-    if (tourVariations[0].locations.length > 0) {
-      navigate('/tour-options', {
-        state: {
-          tourVariations,
-          duration: minutes
-        }
-      });
-    }
   };
 
   if (loadingNeighborhoods || loadingArtists || loadingStreetArt) {
