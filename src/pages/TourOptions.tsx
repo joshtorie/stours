@@ -48,13 +48,17 @@ export default function TourOptions() {
       const route = response.routes[0];
       const leg = route.legs[0];
       
+      // Calculate total walking time and distance
+      const totalDuration = route.legs.reduce((total, leg) => total + (leg.duration?.value || 0), 0);
+      const totalDistance = route.legs.reduce((total, leg) => total + (leg.distance?.value || 0), 0);
+      
       setTourVariations(prev => {
         const updated = [...prev];
         updated[index] = {
           ...updated[index],
           response,
-          estimatedTime: Math.ceil(leg.duration?.value || 0) / 60,
-          distance: leg.distance?.text || ''
+          estimatedTime: Math.ceil(totalDuration / 60), // Convert seconds to minutes
+          distance: `${(totalDistance / 1000).toFixed(1)} km` // Convert meters to kilometers
         };
         return updated;
       });
@@ -90,7 +94,47 @@ export default function TourOptions() {
       console.error('Cannot select route without directions response');
       return;
     }
-    navigate('/your-tour', { state: { selectedRoute: tourVariations[index], duration } });
+
+    // Create a serializable version of the tour
+    const serializableTour = {
+      ...tourVariations[index],
+      estimatedTime: tourVariations[index].estimatedTime,
+      distance: tourVariations[index].distance,
+      response: {
+        routes: tourVariations[index].response.routes.map(route => ({
+          bounds: {
+            north: route.bounds.getNorthEast().lat(),
+            south: route.bounds.getSouthWest().lat(),
+            east: route.bounds.getNorthEast().lng(),
+            west: route.bounds.getSouthWest().lng(),
+          },
+          legs: route.legs.map(leg => ({
+            distance: { text: leg.distance?.text, value: leg.distance?.value },
+            duration: { text: leg.duration?.text, value: leg.duration?.value },
+            end_address: leg.end_address,
+            start_address: leg.start_address,
+            steps: leg.steps.map(step => ({
+              distance: { text: step.distance?.text, value: step.distance?.value },
+              duration: { text: step.duration?.text, value: step.duration?.value },
+              instructions: step.instructions,
+              path: step.path?.map(point => ({ lat: point.lat(), lng: point.lng() })),
+              travel_mode: step.travel_mode,
+            })),
+          })),
+          overview_path: route.overview_path?.map(point => ({
+            lat: point.lat(),
+            lng: point.lng()
+          })),
+        })),
+      }
+    };
+
+    navigate('/your-tour', {
+      state: {
+        selectedRoute: serializableTour,
+        duration
+      }
+    });
   };
 
   // Create DirectionsService component

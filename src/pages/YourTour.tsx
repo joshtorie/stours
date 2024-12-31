@@ -16,6 +16,31 @@ export default function YourTour() {
   const { selectedRoute: tour, duration } = location.state as TourState;
   const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
 
+  // Convert serialized response back to DirectionsResult
+  const directionsResult = React.useMemo(() => {
+    if (!tour?.response) return null;
+
+    return {
+      routes: tour.response.routes.map(route => ({
+        ...route,
+        bounds: new google.maps.LatLngBounds(
+          new google.maps.LatLng(route.bounds.south, route.bounds.west),
+          new google.maps.LatLng(route.bounds.north, route.bounds.east)
+        ),
+        legs: route.legs.map(leg => ({
+          ...leg,
+          steps: leg.steps.map(step => ({
+            ...step,
+            path: step.path?.map(point => new google.maps.LatLng(point.lat, point.lng)),
+          })),
+        })),
+        overview_path: route.overview_path?.map(
+          point => new google.maps.LatLng(point.lat, point.lng)
+        ),
+      })),
+    };
+  }, [tour]);
+
   if (!tour || !tour.response) {
     return (
       <div className="container mx-auto p-4">
@@ -82,18 +107,20 @@ export default function YourTour() {
               )}
 
               {/* Display the route */}
-              <DirectionsRenderer
-                options={{
-                  directions: tour.response,
-                  suppressMarkers: false,
-                  markerOptions: {
-                    label: {
-                      color: 'white',
-                      fontWeight: 'bold'
+              {directionsResult && (
+                <DirectionsRenderer
+                  options={{
+                    directions: directionsResult,
+                    suppressMarkers: false,
+                    markerOptions: {
+                      label: {
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }
                     }
-                  }
-                }}
-              />
+                  }}
+                />
+              )}
             </GoogleMap>
           </div>
 
@@ -102,12 +129,12 @@ export default function YourTour() {
               <h2 className="text-xl font-semibold mb-2">Tour Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gray-50 p-3 rounded">
-                  <p className="text-sm text-gray-600">Duration</p>
+                  <p className="text-sm text-gray-600">Tour Duration</p>
                   <p className="font-medium">{duration} minutes</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-sm text-gray-600">Walking Time</p>
-                  <p className="font-medium">{Math.round(tour.estimatedTime || 0)} minutes</p>
+                  <p className="font-medium">{tour.estimatedTime} minutes</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-sm text-gray-600">Distance</p>
