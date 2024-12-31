@@ -10,7 +10,7 @@ export function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
             <img
-              src="../../assets/STreet ART TOuRS.png"
+              src="/logo.png"
               alt="Street Tours Logo"
               className="h-8 w-auto"
             />
