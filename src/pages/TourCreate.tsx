@@ -74,53 +74,61 @@ export default function TourCreate() {
     return [{ id: SURPRISE_ME, title: 'Surprise Me!', artist_id: '', neighborhood_id: '', image: 'https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg', latitude: 0, longitude: 0 }, ...artworks];
   }, [neighborhood, selectedArtists, allStreetArt]);
 
-  const handleArtistToggle = (artistId: string) => {
+  const handleArtistSelect = (artistId: string) => {
     setSelectedArtists(prev => {
-      const newSelection = new Set(prev);
+      const next = new Set(prev);
       if (artistId === SURPRISE_ME) {
-        // If selecting surprise me, clear other selections
-        if (!newSelection.has(SURPRISE_ME)) {
-          newSelection.clear();
-          newSelection.add(SURPRISE_ME);
-        } else {
-          newSelection.delete(SURPRISE_ME);
-        }
+        next.clear();
+        next.add(SURPRISE_ME);
+        // Auto-populate random artists
+        const availableArtists = allArtists.filter(artist => artist.id !== SURPRISE_ME);
+        const numToSelect = Math.floor(Math.random() * 3) + 2; // Select 2-4 random artists
+        const shuffled = shuffleArray([...availableArtists]);
+        shuffled.slice(0, numToSelect).forEach(artist => {
+          next.add(artist.id);
+        });
       } else {
-        // If selecting specific artist, remove surprise me
-        newSelection.delete(SURPRISE_ME);
-        if (newSelection.has(artistId)) {
-          newSelection.delete(artistId);
+        // If surprise me was selected, remove it
+        if (prev.has(SURPRISE_ME)) {
+          next.clear();
+        }
+        if (next.has(artistId)) {
+          next.delete(artistId);
         } else {
-          newSelection.add(artistId);
+          next.add(artistId);
         }
       }
-      return newSelection;
+      return next;
     });
     setSelectedStreetArt(new Set());
     setSelectedLocations([]);
   };
 
-  const handleStreetArtToggle = (artId: string) => {
+  const handleStreetArtSelect = (artId: string) => {
     setSelectedStreetArt(prev => {
-      const newSelection = new Set(prev);
+      const next = new Set(prev);
       if (artId === SURPRISE_ME) {
-        // If selecting surprise me, clear other selections
-        if (!newSelection.has(SURPRISE_ME)) {
-          newSelection.clear();
-          newSelection.add(SURPRISE_ME);
-        } else {
-          newSelection.delete(SURPRISE_ME);
-        }
+        next.clear();
+        next.add(SURPRISE_ME);
+        // Auto-populate random street art
+        const availableArt = allStreetArt.filter(art => art.id !== SURPRISE_ME);
+        const numToSelect = Math.floor(Math.random() * 4) + 3; // Select 3-6 random pieces
+        const shuffled = shuffleArray([...availableArt]);
+        shuffled.slice(0, numToSelect).forEach(art => {
+          next.add(art.id);
+        });
       } else {
-        // If selecting specific art, remove surprise me
-        newSelection.delete(SURPRISE_ME);
-        if (newSelection.has(artId)) {
-          newSelection.delete(artId);
+        // If surprise me was selected, remove it
+        if (prev.has(SURPRISE_ME)) {
+          next.clear();
+        }
+        if (next.has(artId)) {
+          next.delete(artId);
         } else {
-          newSelection.add(artId);
+          next.add(artId);
         }
       }
-      return newSelection;
+      return next;
     });
   };
 
@@ -463,7 +471,7 @@ export default function TourCreate() {
                   subtitle="Let us pick artists for you"
                   imageUrl="https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg"
                   selected={selectedArtists.has(SURPRISE_ME)}
-                  onClick={handleArtistToggle}
+                  onClick={handleArtistSelect}
                 />
                 {filteredArtists
                   .filter(a => a.id !== SURPRISE_ME)
@@ -474,7 +482,7 @@ export default function TourCreate() {
                       title={a.name}
                       imageUrl={a.hero_image}
                       selected={selectedArtists.has(a.id)}
-                      onClick={handleArtistToggle}
+                      onClick={handleArtistSelect}
                     />
                   ))}
               </div>
@@ -497,7 +505,7 @@ export default function TourCreate() {
                   subtitle="Let us pick street art for you"
                   imageUrl="https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg"
                   selected={selectedStreetArt.has(SURPRISE_ME)}
-                  onClick={handleStreetArtToggle}
+                  onClick={handleStreetArtSelect}
                 />
                 {filteredStreetArt
                   .filter(art => art.id !== SURPRISE_ME)
@@ -509,7 +517,7 @@ export default function TourCreate() {
                       imageUrl={art.image}
                       subtitle={allArtists.find(a => a.id === art.artist_id)?.name}
                       selected={selectedStreetArt.has(art.id)}
-                      onClick={handleStreetArtToggle}
+                      onClick={handleStreetArtSelect}
                     />
                   ))}
               </div>
