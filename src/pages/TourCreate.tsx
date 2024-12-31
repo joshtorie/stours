@@ -636,19 +636,6 @@ export default function TourCreate() {
                     />
                   ))}
               </div>
-              <button 
-                onClick={handleArtworkSelect}
-                disabled={selectedStreetArt.size === 0}
-                className={`
-                  mt-6 w-full p-3 rounded-lg text-white transition-colors
-                  ${selectedStreetArt.size === 0
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-500 hover:bg-blue-600'
-                  }
-                `}
-              >
-                {selectedStreetArt.has(SURPRISE_ME) ? 'Continue to Tour Length' : 'Add to Tour'}
-              </button>
             </div>
           )}
         </div>
@@ -656,33 +643,18 @@ export default function TourCreate() {
         {/* Right Column - Selected Items & Tour Length */}
         <div className="bg-gray-50 p-6 rounded-lg space-y-6">
           <div>
-            <h2 className="text-xl font-semibold mb-4">Your Tour</h2>
-            {selectedStreetArt.has(SURPRISE_ME) ? (
-              <div className="bg-white p-4 rounded-lg shadow-sm">
-                <p className="text-gray-600 italic">
-                  Your tour will be automatically generated based on your preferences
-                  and selected tour length.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
+            {selectedLocations.length > 0 && !selectedStreetArt.has(SURPRISE_ME) && (
+              <div className="space-y-4 mb-6">
                 {selectedLocations.map((location, index) => (
                   <div key={index} className="bg-white p-4 rounded-lg shadow-sm">
                     <h3 className="font-medium">{location.title}</h3>
                     <p className="text-gray-600 text-sm mt-1">by {location.artist}</p>
                   </div>
                 ))}
-                {selectedLocations.length === 0 && (
-                  <p className="text-gray-500 text-center py-4">
-                    No locations selected yet
-                  </p>
-                )}
               </div>
             )}
-          </div>
 
-          {(selectedLocations.length > 0 || selectedStreetArt.has(SURPRISE_ME)) && (
-            <div className="mt-8 max-w-md mx-auto">
+            {(selectedLocations.length > 0 || selectedStreetArt.size > 0) && (
               <div className="space-y-4">
                 <div>
                   <label htmlFor="tourLength" className="block text-lg font-medium text-gray-700 mb-2">
@@ -719,8 +691,8 @@ export default function TourCreate() {
                   Create My Tour
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
