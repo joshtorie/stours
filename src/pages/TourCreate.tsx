@@ -181,68 +181,66 @@ export default function TourCreate() {
     let locations: SelectedLocation[] = [];
     
     if (selectedArtists.has(SURPRISE_ME) && selectedStreetArt.has(SURPRISE_ME)) {
-      // Both are surprise me - generate completely random selections
       locations = generateRandomLocations(maxStops * 2);
     } else if (selectedArtists.has(SURPRISE_ME)) {
-      // Random artists, specific street art
       const selectedArt = Array.from(selectedStreetArt).filter(id => id !== SURPRISE_ME);
       locations = generateLocationsWithRandomArtists(selectedArt, maxStops * 2);
     } else if (selectedStreetArt.has(SURPRISE_ME)) {
-      // Specific artists, random street art
       const selectedArtistIds = Array.from(selectedArtists).filter(id => id !== SURPRISE_ME);
       locations = generateLocationsWithRandomArt(selectedArtistIds, maxStops * 2);
     } else {
-      // Specific selections for both
       locations = selectedLocations;
     }
 
     console.log('[TourCreate] Generated initial locations:', locations);
 
-    // Create deep copies for each tour variation
+    // Try to generate different tour variations
     const compactLocations = [...locations].map(loc => ({...loc}));
     const diverseLocations = [...locations].map(loc => ({...loc}));
     const popularLocations = [...locations].map(loc => ({...loc}));
 
-    // Generate three different variations of the tour
     const compactTour = generateCompactTour(compactLocations, maxStops);
     const diverseTour = generateDiverseTour(diverseLocations, maxStops);
     const popularTour = generatePopularTour(popularLocations, maxStops);
 
-    console.log('[TourCreate] Generated tour variations:', {
-      compact: compactTour.map(loc => loc.id),
-      diverse: diverseTour.map(loc => loc.id),
-      popular: popularTour.map(loc => loc.id)
-    });
-
-    // Verify that the tours are different
+    // Check if tours are significantly different
     const areDifferent = 
       !areLocationsEqual(compactTour, diverseTour) &&
       !areLocationsEqual(compactTour, popularTour) &&
       !areLocationsEqual(diverseTour, popularTour);
 
-    if (!areDifferent) {
-      console.warn('[TourCreate] Warning: Generated tours are too similar, regenerating...');
-      // If tours are too similar, try regenerating with different seeds
-      return handleCreateTour();
+    let tourVariations;
+    
+    if (areDifferent) {
+      // If we can create different variations, show all three
+      tourVariations = [
+        {
+          name: 'Compact Tour',
+          description: 'Minimizes walking distance between locations',
+          locations: compactTour
+        },
+        {
+          name: 'Diverse Tour',
+          description: 'Features work from different artists',
+          locations: diverseTour
+        },
+        {
+          name: 'Popular Tour',
+          description: 'Based on ratings and popularity',
+          locations: popularTour
+        }
+      ];
+    } else {
+      // If we can't create enough variance, offer the best single tour
+      const bestTour = generateOptimizedTour(locations, maxStops);
+      tourVariations = [
+        {
+          name: 'Optimized Tour',
+          description: 'The best route based on your selections, balancing distance and variety',
+          locations: bestTour
+        }
+      ];
     }
-
-    const tourVariations = [
-      {
-        name: 'Compact Tour',
-        description: 'Minimizes walking distance between locations',
-        locations: compactTour
-      },
-      {
-        name: 'Diverse Tour',
-        description: 'Features work from different artists',
-        locations: diverseTour
-      },
-      {
-        name: 'Popular Tour',
-        description: 'Based on ratings and popularity',
-        locations: popularTour
-      }
-    ];
 
     if (tourVariations[0].locations.length > 0) {
       navigate('/tour-options', {
@@ -252,6 +250,88 @@ export default function TourCreate() {
         }
       });
     }
+  };
+
+  const generateOptimizedTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    if (locations.length <= maxStops) return locations;
+
+    // Create a balanced tour that considers both distance and variety
+    const result: SelectedLocation[] = [];
+    const remainingLocations = [...locations];
+
+    // Start with a central location
+    const center = getCenterPoint(locations);
+    let startIndex = 0;
+    let minDistanceToCenter = Infinity;
+
+    // Find the location closest to the center
+    remainingLocations.forEach((loc, index) => {
+      const distance = calculateDistance(center, loc.coordinates);
+      if (distance < minDistanceToCenter) {
+        minDistanceToCenter = distance;
+        startIndex = index;
+      }
+    });
+
+    // Add the starting location
+    result.push(remainingLocations[startIndex]);
+    remainingLocations.splice(startIndex, 1);
+
+    // Add remaining locations based on a combination of factors
+    while (result.length < maxStops && remainingLocations.length > 0) {
+      let bestIndex = 0;
+      let bestScore = -Infinity;
+
+      remainingLocations.forEach((loc, index) => {
+        // Calculate distance factor (closer is better)
+        const distance = calculateDistance(
+          result[result.length - 1].coordinates,
+          loc.coordinates
+        );
+        const distanceScore = 1 / (1 + distance / 1000); // Normalize distance
+
+        // Calculate artist variety factor
+        const sameArtistCount = result.filter(r => r.artist === loc.artist).length;
+        const varietyScore = 1 / (1 + sameArtistCount);
+
+        // Calculate popularity factor
+        const popularityScore = 
+          (loc.title.toLowerCase().includes('mural') ? 0.2 : 0) +
+          (loc.description?.length > 100 ? 0.1 : 0) +
+          (loc.image ? 0.3 : 0);
+
+        // Combine scores with weights
+        const totalScore = 
+          (distanceScore * 0.4) +    // 40% weight on distance
+          (varietyScore * 0.4) +     // 40% weight on variety
+          (popularityScore * 0.2);   // 20% weight on popularity
+
+        if (totalScore > bestScore) {
+          bestScore = totalScore;
+          bestIndex = index;
+        }
+      });
+
+      result.push(remainingLocations[bestIndex]);
+      remainingLocations.splice(bestIndex, 1);
+    }
+
+    return result;
+  };
+
+  const getCenterPoint = (locations: SelectedLocation[]): { lat: number; lng: number } => {
+    const total = locations.reduce(
+      (acc, loc) => ({
+        lat: acc.lat + loc.coordinates.lat,
+        lng: acc.lng + loc.coordinates.lng
+      }),
+      { lat: 0, lng: 0 }
+    );
+
+    return {
+      lat: total.lat / locations.length,
+      lng: total.lng / locations.length
+    };
   };
 
   const areLocationsEqual = (locations1: SelectedLocation[], locations2: SelectedLocation[]): boolean => {

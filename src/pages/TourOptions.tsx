@@ -121,7 +121,14 @@ export default function TourOptions() {
   return (
     <GoogleMapsWrapper>
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6">Choose Your Tour</h1>
+        <h1 className="text-2xl font-bold mb-6">
+          {tourVariations.length > 1 ? 'Choose Your Tour' : 'Your Optimized Tour'}
+        </h1>
+        {tourVariations.length === 1 && (
+          <p className="text-gray-600 mb-6">
+            We've created the best possible tour based on your selections, optimizing for both walking distance and variety.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tourVariations.map((variation, index) => (
             <div 
