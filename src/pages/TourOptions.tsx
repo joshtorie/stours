@@ -90,7 +90,7 @@ export default function TourOptions() {
       console.error('Cannot select route without directions response');
       return;
     }
-    navigate('/tour', { state: { selectedRoute: tourVariations[index], duration } });
+    navigate('/your-tour', { state: { selectedRoute: tourVariations[index], duration } });
   };
 
   // Create DirectionsService component

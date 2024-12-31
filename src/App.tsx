@@ -10,6 +10,7 @@ import AdminPage from './pages/AdminPage';
 import TourCreate from './pages/TourCreate';
 import TourOptions from './pages/TourOptions';
 import TourPage from './pages/TourPage';
+import YourTour from './pages/YourTour';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/tour-create" element={<TourCreate />} />
           <Route path="/tour-options" element={<TourOptions />} />
           <Route path="/tour-page" element={<TourPage />} />
+          <Route path="/your-tour" element={<YourTour />} />
         </Routes>
       </div>
     </Router>
