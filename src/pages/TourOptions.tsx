@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { GoogleMap, useJsApiLoader, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, DirectionsService, DirectionsRenderer, MarkerF } from '@react-google-maps/api';
+import { GOOGLE_MAPS_LIBRARIES, DEFAULT_MAP_OPTIONS } from '../config/maps';
+
+// Define libraries array as a constant outside the component
 
 interface Location {
   id: string;
@@ -16,9 +19,9 @@ interface TourVariation {
   name: string;
   description: string;
   locations: Location[];
-  response: google.maps.DirectionsResult | null;
-  estimatedTime: number;
-  distance: string;
+  response?: google.maps.DirectionsResult;
+  estimatedTime?: number;
+  distance?: string;
 }
 
 const mapContainerStyle = {
@@ -31,14 +34,39 @@ const center = { lat: -33.92543, lng: 18.42322 }; // Cape Town
 export default function TourOptions() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { tourVariations = [], duration = 0 } = location.state || {};
+  const { tourVariations: initialTourVariations = [], duration = 0 } = location.state || {};
 
+  const [tourVariations, setTourVariations] = useState<TourVariation[]>(initialTourVariations);
   const [selectedVariation, setSelectedVariation] = useState<number | null>(null);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places']
+    libraries: GOOGLE_MAPS_LIBRARIES
   });
+
+  const handleDirectionsCallback = useCallback((
+    response: google.maps.DirectionsResult | null,
+    status: google.maps.DirectionsStatus,
+    index: number
+  ) => {
+    if (status === 'OK' && response) {
+      const route = response.routes[0];
+      const leg = route.legs[0];
+
+      setTourVariations(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          response,
+          estimatedTime: Math.ceil(leg.duration?.value || 0) / 60,
+          distance: leg.distance?.text || ''
+        };
+        return updated;
+      });
+    } else {
+      console.error('Directions request failed:', status);
+    }
+  }, []);
 
   const handleRouteSelect = (index: number) => {
     setSelectedVariation(index);
@@ -87,7 +115,18 @@ export default function TourOptions() {
                 mapContainerStyle={{ width: '100%', height: '100%' }}
                 center={variation.locations[0].coordinates}
                 zoom={13}
+                options={DEFAULT_MAP_OPTIONS}
               >
+                {/* Add markers for each location */}
+                {variation.locations.map((location, locationIndex) => (
+                  <MarkerF
+                    key={locationIndex}
+                    position={location.coordinates}
+                    label={(locationIndex + 1).toString()}
+                    title={`${location.title} by ${location.artist}`}
+                  />
+                ))}
+
                 {/* Request directions */}
                 <DirectionsService
                   options={{
@@ -100,20 +139,7 @@ export default function TourOptions() {
                     travelMode: google.maps.TravelMode.WALKING,
                     optimizeWaypoints: true
                   }}
-                  callback={(response, status) => {
-                    if (status === 'OK' && response) {
-                      const route = response.routes[0];
-                      const leg = route.legs[0];
-                      
-                      // Update the tour variation with the route details
-                      tourVariations[index] = {
-                        ...variation,
-                        response,
-                        estimatedTime: Math.ceil(leg.duration?.value || 0) / 60,
-                        distance: leg.distance?.text || ''
-                      };
-                    }
-                  }}
+                  callback={(response, status) => handleDirectionsCallback(response, status, index)}
                 />
                 
                 {/* Render directions if available */}
@@ -121,7 +147,7 @@ export default function TourOptions() {
                   <DirectionsRenderer
                     options={{
                       directions: variation.response,
-                      suppressMarkers: false
+                      suppressMarkers: true // Hide default markers to show our custom ones
                     }}
                   />
                 )}

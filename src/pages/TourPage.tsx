@@ -1,22 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useJsApiLoader, GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
+import { GOOGLE_MAPS_LIBRARIES, DEFAULT_MAP_OPTIONS, DEFAULT_ZOOM } from '../config/maps';
+
+// Define libraries array as a constant outside the component
 
 export default function TourPage() {
   const location = useLocation();
   const { route } = location.state || { route: null };
   const mapRef = useRef(null);
 
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES
+  });
+
   useEffect(() => {
     if (!route) return;
 
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: { lat: -34.397, lng: 150.644 }, // Default center, update based on route
-      zoom: 12,
-    });
-
     const directionsService = new window.google.maps.DirectionsService();
     const directionsRenderer = new window.google.maps.DirectionsRenderer();
-    directionsRenderer.setMap(map);
+    directionsRenderer.setMap(mapRef.current);
 
     const request = {
       origin: 'start_location', // Replace with actual start location
@@ -45,7 +49,16 @@ export default function TourPage() {
       <ul className="list-disc pl-5">
         {route.details.map((detail, index) => <li key={index}>{detail}</li>)}
       </ul>
-      <div ref={mapRef} style={{ height: '400px', width: '100%' }} className="mt-4"></div>
+      {isLoaded && (
+        <GoogleMap
+          mapContainerStyle={{ width: '100%', height: '400px' }}
+          center={route.locations[0].coordinates}
+          zoom={DEFAULT_ZOOM}
+          options={DEFAULT_MAP_OPTIONS}
+        >
+          <DirectionsRenderer />
+        </GoogleMap>
+      )}
       <button className="mt-4 bg-green-500 text-white p-2 rounded">Start Tour</button>
       <button className="mt-2 bg-blue-500 text-white p-2 rounded">Back to Tour Options</button>
     </div>
