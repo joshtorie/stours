@@ -40,6 +40,36 @@ export default function TourOptions() {
   const [selectedVariation, setSelectedVariation] = useState<number | null>(null);
   const [calculatingRoutes, setCalculatingRoutes] = useState<Set<number>>(new Set());
 
+  const createWaypoint = useCallback((location: Location) => {
+    if (window.google) {
+      return {
+        location: new window.google.maps.LatLng(
+          location.coordinates.lat,
+          location.coordinates.lng
+        ),
+        stopover: true
+      };
+    }
+    return null;
+  }, []);
+
+  const getDirectionsOptions = useCallback((variation: TourVariation) => {
+    if (!window.google) return null;
+
+    const waypoints = variation.locations
+      .slice(1, -1)
+      .map(createWaypoint)
+      .filter((wp): wp is google.maps.DirectionsWaypoint => wp !== null);
+
+    return {
+      destination: variation.locations[variation.locations.length - 1].coordinates,
+      origin: variation.locations[0].coordinates,
+      waypoints,
+      travelMode: window.google.maps.TravelMode.WALKING,
+      optimizeWaypoints: true
+    };
+  }, [createWaypoint]);
+
   const handleDirectionsCallback = useCallback((
     response: google.maps.DirectionsResult | null,
     status: google.maps.DirectionsStatus,
@@ -132,19 +162,14 @@ export default function TourOptions() {
 
                   {/* Request directions */}
                   {!variation.response && !calculatingRoutes.has(index) && (
-                    <DirectionsService
-                      options={{
-                        destination: variation.locations[variation.locations.length - 1].coordinates,
-                        origin: variation.locations[0].coordinates,
-                        waypoints: variation.locations.slice(1, -1).map(loc => ({
-                          location: new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
-                          stopover: true
-                        })),
-                        travelMode: google.maps.TravelMode.WALKING,
-                        optimizeWaypoints: true
-                      }}
-                      callback={(response, status) => handleDirectionsCallback(response, status, index)}
-                    />
+                    <>
+                      {window.google && (
+                        <DirectionsService
+                          options={getDirectionsOptions(variation)!}
+                          callback={(response, status) => handleDirectionsCallback(response, status, index)}
+                        />
+                      )}
+                    </>
                   )}
 
                   {/* Render directions if available */}
