@@ -162,6 +162,120 @@ export default function TourCreate() {
     }
   };
 
+  const generateCompactTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    if (locations.length <= maxStops) return locations;
+
+    // Start with a random location
+    const startLocation = locations[Math.floor(Math.random() * locations.length)];
+    const result: SelectedLocation[] = [startLocation];
+    const remaining = locations.filter(loc => loc.id !== startLocation.id);
+
+    // Keep adding the closest location until we reach maxStops
+    while (result.length < maxStops && remaining.length > 0) {
+      const current = result[result.length - 1];
+      let closest = remaining[0];
+      let minDistance = calculateDistance(
+        current.coordinates,
+        closest.coordinates
+      );
+
+      // Find the closest remaining location
+      for (let i = 1; i < remaining.length; i++) {
+        const distance = calculateDistance(
+          current.coordinates,
+          remaining[i].coordinates
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closest = remaining[i];
+        }
+      }
+
+      result.push(closest);
+      const index = remaining.findIndex(loc => loc.id === closest.id);
+      remaining.splice(index, 1);
+    }
+
+    return result;
+  };
+
+  const generateDiverseTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    if (locations.length <= maxStops) return locations;
+
+    // Group locations by artist
+    const byArtist = locations.reduce((acc, loc) => {
+      if (!acc[loc.artist]) {
+        acc[loc.artist] = [];
+      }
+      acc[loc.artist].push(loc);
+      return acc;
+    }, {} as Record<string, SelectedLocation[]>);
+
+    const result: SelectedLocation[] = [];
+    const artists = Object.keys(byArtist);
+
+    // First, ensure we have at least one piece from each artist
+    for (const artist of artists) {
+      if (result.length < maxStops) {
+        // Randomly select one piece from this artist
+        const artistWorks = byArtist[artist];
+        const randomIndex = Math.floor(Math.random() * artistWorks.length);
+        result.push(artistWorks[randomIndex]);
+        artistWorks.splice(randomIndex, 1);
+      }
+    }
+
+    // If we still have room, add random pieces while maintaining diversity
+    while (result.length < maxStops) {
+      // Find artists who still have works
+      const availableArtists = artists.filter(artist => byArtist[artist].length > 0);
+      if (availableArtists.length === 0) break;
+
+      // Randomly select an artist and add one of their works
+      const randomArtist = availableArtists[Math.floor(Math.random() * availableArtists.length)];
+      const artistWorks = byArtist[randomArtist];
+      const randomIndex = Math.floor(Math.random() * artistWorks.length);
+      result.push(artistWorks[randomIndex]);
+      artistWorks.splice(randomIndex, 1);
+    }
+
+    return result;
+  };
+
+  const generatePopularTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
+    if (locations.length <= maxStops) return locations;
+
+    // For now, we'll simulate popularity using a weighted random selection
+    // In the future, this could use real popularity data
+    const withPopularity = locations.map(loc => ({
+      ...loc,
+      // Simulate popularity score (0-1)
+      popularity: Math.random()
+    }));
+
+    // Sort by "popularity"
+    withPopularity.sort((a, b) => b.popularity - a.popularity);
+
+    // Take the top maxStops locations, but shuffle them slightly to add variety
+    const topLocations = withPopularity.slice(0, maxStops);
+    return shuffleArray(topLocations);
+  };
+
+  const calculateDistance = (coord1: { lat: number; lng: number }, coord2: { lat: number; lng: number }): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = coord1.lat * Math.PI / 180;
+    const φ2 = coord2.lat * Math.PI / 180;
+    const Δφ = (coord2.lat - coord1.lat) * Math.PI / 180;
+    const Δλ = (coord2.lng - coord1.lng) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // Distance in meters
+  };
+
   const handleCreateTour = () => {
     if (!tourLength) return;
     setNotificationMessage(null);
@@ -174,15 +288,15 @@ export default function TourCreate() {
     
     if (selectedArtists.has(SURPRISE_ME) && selectedStreetArt.has(SURPRISE_ME)) {
       // Both are surprise me - generate completely random selections
-      locations = generateRandomLocations(maxStops);
+      locations = generateRandomLocations(maxStops * 2); // Generate more than needed for variety
     } else if (selectedArtists.has(SURPRISE_ME)) {
       // Random artists, specific street art
       const selectedArt = Array.from(selectedStreetArt).filter(id => id !== SURPRISE_ME);
-      locations = generateLocationsWithRandomArtists(selectedArt, maxStops);
+      locations = generateLocationsWithRandomArtists(selectedArt, maxStops * 2);
     } else if (selectedStreetArt.has(SURPRISE_ME)) {
       // Specific artists, random street art
       const selectedArtistIds = Array.from(selectedArtists).filter(id => id !== SURPRISE_ME);
-      locations = generateLocationsWithRandomArt(selectedArtistIds, maxStops);
+      locations = generateLocationsWithRandomArt(selectedArtistIds, maxStops * 2);
     } else {
       // Specific selections for both
       locations = selectedLocations;
@@ -206,6 +320,14 @@ export default function TourCreate() {
         locations: generatePopularTour([...locations], maxStops)
       }
     ];
+
+    // Verify that the tours are different
+    console.log('[TourCreate] Generated tour variations:', 
+      tourVariations.map(tour => ({
+        name: tour.name,
+        locations: tour.locations.map(loc => loc.id)
+      }))
+    );
 
     if (tourVariations[0].locations.length > 0) {
       navigate('/tour-options', {
@@ -287,116 +409,6 @@ export default function TourCreate() {
 
   const calculateMaxStops = (minutes: number) => {
     return Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
-  };
-
-  const calculateDistance = (loc1: SelectedLocation, loc2: SelectedLocation) => {
-    const R = 6371; // Earth's radius in km
-    const lat1 = loc1.coordinates.lat * Math.PI / 180;
-    const lat2 = loc2.coordinates.lat * Math.PI / 180;
-    const dLat = (loc2.coordinates.lat - loc1.coordinates.lat) * Math.PI / 180;
-    const dLon = (loc2.coordinates.lng - loc1.coordinates.lng) * Math.PI / 180;
-
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  const generateCompactTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
-    if (locations.length <= maxStops) return locations;
-    
-    const result: SelectedLocation[] = [locations[0]]; // Start with first location
-    
-    while (result.length < maxStops) {
-      let shortestDistance = Infinity;
-      let nextLocation: SelectedLocation | null = null;
-      const lastLocation = result[result.length - 1];
-      
-      for (const location of locations) {
-        if (result.includes(location)) continue;
-        
-        const distance = calculateDistance(lastLocation, location);
-        if (distance < shortestDistance) {
-          shortestDistance = distance;
-          nextLocation = location;
-        }
-      }
-      
-      if (nextLocation) {
-        result.push(nextLocation);
-      }
-    }
-    
-    return result;
-  };
-
-  const generateDiverseTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
-    if (locations.length <= maxStops) return locations;
-    
-    // Group locations by artist
-    const artistGroups = locations.reduce((groups, location) => {
-      if (!groups[location.artist]) {
-        groups[location.artist] = [];
-      }
-      groups[location.artist].push(location);
-      return groups;
-    }, {} as Record<string, SelectedLocation[]>);
-    
-    const result: SelectedLocation[] = [];
-    const artists = Object.keys(artistGroups);
-    
-    // Take one piece from each artist until we reach maxStops
-    while (result.length < maxStops && Object.keys(artistGroups).length > 0) {
-      for (const artist of artists) {
-        if (result.length >= maxStops) break;
-        if (artistGroups[artist]?.length) {
-          result.push(artistGroups[artist].shift()!);
-        }
-      }
-    }
-    
-    return result;
-  };
-
-  const generatePopularTour = (locations: SelectedLocation[], maxStops: number): SelectedLocation[] => {
-    // In the future, this would use actual popularity/rating data
-    // For now, randomly select locations as a fallback
-    return [...locations]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, maxStops);
-  };
-
-  const generateTourVariations = (
-    locations: SelectedLocation[],
-    maxStops: number
-  ): TourVariation[] => {
-    if (locations.length > maxStops) {
-      setNotificationMessage(
-        `We noticed you selected ${locations.length} locations for a ${tourLength}-minute tour. ` +
-        `We've created three different tour options that will fit within your time frame, ` +
-        `each optimized for a different experience.`
-      );
-    }
-
-    return [
-      {
-        name: 'Compact Tour',
-        description: 'Minimizes walking distance between locations',
-        locations: generateCompactTour(locations, maxStops)
-      },
-      {
-        name: 'Diverse Tour',
-        description: 'Features work from different artists',
-        locations: generateDiverseTour(locations, maxStops)
-      },
-      {
-        name: 'Popular Tour',
-        description: 'Based on ratings and popularity',
-        locations: generatePopularTour(locations, maxStops)
-      }
-    ];
   };
 
   if (loadingNeighborhoods || loadingArtists || loadingStreetArt) {
