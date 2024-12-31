@@ -21,7 +21,7 @@ export default function YourTour() {
 
   // Convert serialized response back to DirectionsResult
   const directionsResult = React.useMemo(() => {
-    if (!tour?.response) return null;
+    if (!tour?.response || !window.google) return null;
 
     return {
       routes: tour.response.routes.map(route => ({
@@ -42,24 +42,24 @@ export default function YourTour() {
         ),
       })),
     };
-  }, [tour]);
+  }, [tour, window.google]);
 
   // Watch user's location
   React.useEffect(() => {
-    if (!navigator.geolocation) {
-      console.error('Geolocation is not supported by your browser');
+    if (!navigator.geolocation || !window.google || !tour?.response) {
       return;
     }
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        setUserLocation(new google.maps.LatLng(
+        const newLocation = new google.maps.LatLng(
           position.coords.latitude,
           position.coords.longitude
-        ));
+        );
+        setUserLocation(newLocation);
 
         // Update current step based on user location if tour is not paused
-        if (!isPaused && tour?.response) {
+        if (!isPaused) {
           const leg = tour.response.routes[0].legs[0];
           // Find the closest step to the user's current location
           const closestStepIndex = leg.steps.findIndex((step, index) => {
@@ -67,7 +67,7 @@ export default function YourTour() {
             if (!stepPath) return false;
             const distance = google.maps.geometry.spherical.computeDistanceBetween(
               new google.maps.LatLng(stepPath.lat, stepPath.lng),
-              new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
+              newLocation
             );
             return distance < 50; // Within 50 meters
           });
@@ -89,7 +89,7 @@ export default function YourTour() {
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [tour, isPaused]);
+  }, [tour, isPaused, window.google]);
 
   if (!tour || !tour.response) {
     return (
@@ -270,14 +270,14 @@ export default function YourTour() {
               </div>
               <div className="space-y-4">
                 {leg.steps.map((step, index) => {
-                  const isArtStop = tour.locations.some(loc => 
+                  const isArtStop = window.google && tour.locations.some(loc => 
                     google.maps.geometry.spherical.computeDistanceBetween(
                       new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
                       step.path?.[0] || new google.maps.LatLng(0, 0)
                     ) < 50
                   );
                   
-                  const artLocation = tour.locations.find(loc => 
+                  const artLocation = window.google && tour.locations.find(loc => 
                     google.maps.geometry.spherical.computeDistanceBetween(
                       new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
                       step.path?.[0] || new google.maps.LatLng(0, 0)
