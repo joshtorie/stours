@@ -1,29 +1,45 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Settings } from 'lucide-react';
-import logo from '../../assets/STreet ART TOuRS.png';
+import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 export function Navbar() {
   return (
-    <nav className="bg-white shadow-md fixed top-0 left-0 right-0 z-50">
+    <nav className="bg-white shadow-md">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          <Link to="/" className="flex items-center">
-            <img src={logo} alt="Street Art Tours Logo" className="h-10 w-auto" />
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <Link to="/" className="flex-shrink-0">
+            <img
+              src="../../assets/STreet ART TOuRS.png"
+              alt="Street Tours Logo"
+              className="h-8 w-auto"
+            />
           </Link>
-          
-          <div className="flex items-center space-x-4">
-            <Link to="/tour-create" className="p-2 text-gray-600 hover:text-gray-900 transition-colors">
-              Build Your Tour
-            </Link>
-            <Link 
-              to="/admin" 
-              className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-              title="Admin Dashboard"
+
+          {/* Center Build Your Tour Button */}
+          <div className="flex-grow flex justify-center">
+            <Link
+              to="/tour-create"
+              className="transform transition-all duration-200 hover:scale-105 active:scale-95
+                bg-gradient-to-r from-blue-500 to-blue-600
+                text-white font-semibold px-6 py-2.5 rounded-full
+                shadow-lg hover:shadow-xl
+                flex items-center space-x-2
+                text-sm sm:text-base
+                mx-2 sm:mx-0"
             >
-              <Settings className="w-6 h-6" />
+              <span className="hidden sm:inline">Build Your</span>
+              <span>Tour</span>
             </Link>
           </div>
+
+          {/* Admin Settings */}
+          <Link
+            to="/admin"
+            className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <Cog6ToothIcon className="h-6 w-6 text-gray-600" />
+          </Link>
         </div>
       </div>
     </nav>
