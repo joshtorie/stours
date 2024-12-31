@@ -532,6 +532,8 @@ export default function TourCreate() {
     return Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
   };
 
+  const canCreateTour = tourLength !== '';
+
   if (loadingNeighborhoods || loadingArtists || loadingStreetArt) {
     return <div className="container mx-auto p-4">Loading...</div>;
   }
@@ -680,37 +682,43 @@ export default function TourCreate() {
           </div>
 
           {(selectedLocations.length > 0 || selectedStreetArt.has(SURPRISE_ME)) && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tour Length
-                </label>
-                <select 
-                  value={tourLength} 
-                  onChange={(e) => setTourLength(e.target.value)}
-                  className="w-full p-3 border rounded-lg bg-white"
-                >
-                  <option value="">Select Tour Length</option>
-                  <option value="30">30 minutes (up to 5 stops)</option>
-                  <option value="60">1 hour (up to 10 stops)</option>
-                  <option value="90">1.5 hours (up to 15 stops)</option>
-                  <option value="120">2 hours (up to 20 stops)</option>
-                </select>
-              </div>
+            <div className="mt-8 max-w-md mx-auto">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="tourLength" className="block text-lg font-medium text-gray-700 mb-2">
+                    Tour Length (minutes)
+                  </label>
+                  <select
+                    id="tourLength"
+                    value={tourLength}
+                    onChange={(e) => setTourLength(e.target.value)}
+                    className="block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select duration</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                    <option value="150">2.5 hours</option>
+                    <option value="180">3 hours</option>
+                  </select>
+                </div>
 
-              <button 
-                onClick={handleCreateTour}
-                disabled={!tourLength}
-                className={`
-                  w-full p-3 rounded-lg text-white transition-colors
-                  ${!tourLength
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-500 hover:bg-green-600'
-                  }
-                `}
-              >
-                Create My Tour
-              </button>
+                <button
+                  onClick={handleCreateTour}
+                  disabled={!canCreateTour}
+                  className={`
+                    w-full py-3 px-6 rounded-lg font-semibold text-white
+                    transition-all duration-200
+                    ${canCreateTour
+                      ? 'bg-blue-500 hover:bg-blue-600 transform hover:scale-105'
+                      : 'bg-gray-300 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  Create My Tour
+                </button>
+              </div>
             </div>
           )}
         </div>
