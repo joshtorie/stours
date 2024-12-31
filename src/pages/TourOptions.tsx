@@ -13,6 +13,7 @@ export default function TourOptions() {
   const [tourVariations, setTourVariations] = useState<TourVariation[]>(initialTourVariations);
   const [calculatingRoutes, setCalculatingRoutes] = useState<Set<number>>(new Set());
   const [selectedTour, setSelectedTour] = useState<number | null>(null);
+  const [requestCount, setRequestCount] = useState<Record<number, number>>({});
 
   // Request directions for all tours when component mounts
   useEffect(() => {
@@ -24,6 +25,10 @@ export default function TourOptions() {
           next.add(index);
           return next;
         });
+        setRequestCount(prev => ({
+          ...prev,
+          [index]: 0
+        }));
       }
     });
   }, []);
@@ -33,7 +38,11 @@ export default function TourOptions() {
     status: google.maps.DirectionsStatus,
     index: number
   ) => {
-    console.log(`[TourOptions] Directions callback for tour ${index}:`, { status, hasResponse: !!response });
+    console.log(`[TourOptions] Directions callback for tour ${index}:`, { 
+      status, 
+      hasResponse: !!response,
+      requestCount: requestCount[index]
+    });
 
     if (status === 'OK' && response) {
       const route = response.routes[0];
@@ -49,16 +58,32 @@ export default function TourOptions() {
         };
         return updated;
       });
+      setCalculatingRoutes(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
     } else {
       console.error(`[TourOptions] Directions request failed for tour ${index}:`, status);
+      
+      // If we haven't tried too many times, retry
+      if (requestCount[index] < 3) {
+        console.log(`[TourOptions] Retrying request for tour ${index}`);
+        setRequestCount(prev => ({
+          ...prev,
+          [index]: (prev[index] || 0) + 1
+        }));
+      } else {
+        // If we've tried too many times, give up
+        console.error(`[TourOptions] Failed to get directions for tour ${index} after multiple attempts`);
+        setCalculatingRoutes(prev => {
+          const next = new Set(prev);
+          next.delete(index);
+          return next;
+        });
+      }
     }
-    
-    setCalculatingRoutes(prev => {
-      const next = new Set(prev);
-      next.delete(index);
-      return next;
-    });
-  }, []);
+  }, [requestCount]);
 
   const handleRouteSelect = (index: number) => {
     if (!tourVariations[index].response) {
@@ -66,6 +91,31 @@ export default function TourOptions() {
       return;
     }
     navigate('/tour', { state: { selectedRoute: tourVariations[index], duration } });
+  };
+
+  // Create DirectionsService component
+  const DirectionsServiceComponent = ({ variation, index }: { variation: TourVariation; index: number }) => {
+    if (!window.google || variation.response || !calculatingRoutes.has(index)) {
+      return null;
+    }
+
+    const waypoints = variation.locations.slice(1, -1).map(loc => ({
+      location: new window.google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
+      stopover: true
+    }));
+
+    return (
+      <DirectionsService
+        options={{
+          destination: variation.locations[variation.locations.length - 1].coordinates,
+          origin: variation.locations[0].coordinates,
+          waypoints,
+          travelMode: window.google.maps.TravelMode.WALKING,
+          optimizeWaypoints: true
+        }}
+        callback={(response, status) => handleDirectionsCallback(response, status, index)}
+      />
+    );
   };
 
   return (
@@ -130,24 +180,9 @@ export default function TourOptions() {
                         }}
                       />
                     )}
-                  </GoogleMap>
 
-                  {/* Request directions if not already calculated */}
-                  {!variation.response && !calculatingRoutes.has(index) && window.google && (
-                    <DirectionsService
-                      options={{
-                        destination: variation.locations[variation.locations.length - 1].coordinates,
-                        origin: variation.locations[0].coordinates,
-                        waypoints: variation.locations.slice(1, -1).map(loc => ({
-                          location: new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
-                          stopover: true
-                        })),
-                        travelMode: google.maps.TravelMode.WALKING,
-                        optimizeWaypoints: true
-                      }}
-                      callback={(response, status) => handleDirectionsCallback(response, status, index)}
-                    />
-                  )}
+                    <DirectionsServiceComponent variation={variation} index={index} />
+                  </GoogleMap>
 
                   {calculatingRoutes.has(index) && (
                     <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
@@ -156,7 +191,11 @@ export default function TourOptions() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <p className="text-sm mt-2">Calculating route...</p>
+                        <p className="text-sm mt-2">
+                          {requestCount[index] > 0 
+                            ? `Retrying... (Attempt ${requestCount[index] + 1}/3)`
+                            : 'Calculating route...'}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -174,7 +213,9 @@ export default function TourOptions() {
                   `}
                 >
                   {calculatingRoutes.has(index)
-                    ? 'Calculating Route...'
+                    ? requestCount[index] > 0 
+                      ? `Retrying... (${requestCount[index]}/3)`
+                      : 'Calculating Route...'
                     : variation.response
                     ? 'Select This Tour'
                     : 'Loading...'}
