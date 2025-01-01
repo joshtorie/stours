@@ -19,6 +19,7 @@ export default function YourTour() {
   const [currentStepIndex, setCurrentStepIndex] = React.useState<number>(0);
   const [isPaused, setIsPaused] = React.useState<boolean>(false);
   const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
+  const [maximizedArtCard, setMaximizedArtCard] = React.useState<number | null>(null);
 
   // Convert serialized response back to DirectionsResult
   const directionsResult = React.useMemo(() => {
@@ -108,6 +109,11 @@ export default function YourTour() {
   }
 
   const leg = tour.response.routes[0].legs[0];
+
+  // Function to handle art card click
+  const handleArtCardClick = (locationIndex: number) => {
+    setMaximizedArtCard(maximizedArtCard === locationIndex ? null : locationIndex);
+  };
 
   return (
     <GoogleMapsWrapper>
@@ -306,6 +312,8 @@ export default function YourTour() {
                     ) < 50
                   );
 
+                  const artLocationIndex = artLocation ? tour.locations.findIndex(loc => loc.title === artLocation.title) : -1;
+
                   return (
                     <React.Fragment key={index}>
                       {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
@@ -326,21 +334,59 @@ export default function YourTour() {
                       </div>
                       {isArtStop && artLocation && (
                         <div className="ml-9 mt-2 mb-4">
-                          <div className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                               onClick={() => setSelectedMarker(tour.locations.findIndex(loc => loc.title === artLocation.title))}>
-                            {artLocation.image && (
-                              <img
-                                src={artLocation.image}
-                                alt={artLocation.title}
-                                className="w-24 h-24 object-cover rounded"
-                              />
-                            )}
-                            <div>
-                              <h3 className="font-bold text-lg">{artLocation.title}</h3>
-                              <p className="text-gray-600">by {artLocation.artist}</p>
-                              <p className="text-sm text-blue-500 mt-1">Click to view details</p>
+                          {maximizedArtCard === artLocationIndex ? (
+                            <div className="bg-white rounded-lg shadow-lg p-4">
+                              <div className="flex justify-between items-start mb-4">
+                                <div>
+                                  <h3 className="font-bold text-xl">{artLocation.title}</h3>
+                                  <p className="text-gray-600">by {artLocation.artist}</p>
+                                </div>
+                                <button 
+                                  onClick={() => setMaximizedArtCard(null)}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                              {artLocation.image && (
+                                <img
+                                  src={artLocation.image}
+                                  alt={artLocation.title}
+                                  className="w-full h-64 object-cover rounded mb-4"
+                                />
+                              )}
+                              {/* Placeholder for additional buttons/interactions */}
+                              <div className="flex space-x-4 mt-4">
+                                <button className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                  Share
+                                </button>
+                                <button className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                                  Save
+                                </button>
+                                {/* Add more buttons as needed */}
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div 
+                              className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                              onClick={() => handleArtCardClick(artLocationIndex)}
+                            >
+                              {artLocation.image && (
+                                <img
+                                  src={artLocation.image}
+                                  alt={artLocation.title}
+                                  className="w-24 h-24 object-cover rounded"
+                                />
+                              )}
+                              <div>
+                                <h3 className="font-bold text-lg">{artLocation.title}</h3>
+                                <p className="text-gray-600">by {artLocation.artist}</p>
+                                <p className="text-sm text-blue-500 mt-1">Click to view details</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                       {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
