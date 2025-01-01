@@ -18,6 +18,7 @@ export default function YourTour() {
   const [userLocation, setUserLocation] = React.useState<google.maps.LatLng | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = React.useState<number>(0);
   const [isPaused, setIsPaused] = React.useState<boolean>(false);
+  const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
 
   // Convert serialized response back to DirectionsResult
   const directionsResult = React.useMemo(() => {
@@ -117,6 +118,28 @@ export default function YourTour() {
             <p className="text-gray-600 mt-1">{tour.description}</p>
           </div>
 
+          {/* Tour Details */}
+          <div className="p-4 border-b">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">Tour Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-sm text-gray-600">Tour Duration</p>
+                  <p className="font-medium">{duration} minutes</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-sm text-gray-600">Walking Time</p>
+                  <p className="font-medium">{tour.estimatedTime} minutes</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-sm text-gray-600">Distance</p>
+                  <p className="font-medium">{tour.distance}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Map */}
           <div className="h-[500px] relative">
             <GoogleMap
               mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -197,27 +220,23 @@ export default function YourTour() {
             </GoogleMap>
           </div>
 
-          <div className="p-4">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">Tour Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gray-50 p-3 rounded">
-                  <p className="text-sm text-gray-600">Tour Duration</p>
-                  <p className="font-medium">{duration} minutes</p>
-                </div>
-                <div className="bg-gray-50 p-3 rounded">
-                  <p className="text-sm text-gray-600">Walking Time</p>
-                  <p className="font-medium">{tour.estimatedTime} minutes</p>
-                </div>
-                <div className="bg-gray-50 p-3 rounded">
-                  <p className="text-sm text-gray-600">Distance</p>
-                  <p className="font-medium">{tour.distance}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-4">Street Art Stops</h2>
+          {/* Street Art Stops - Collapsible */}
+          <div className="p-4 border-b">
+            <button 
+              onClick={() => setIsArtStopsExpanded(!isArtStopsExpanded)}
+              className="w-full flex justify-between items-center text-xl font-semibold mb-4"
+            >
+              <span>Street Art Stops</span>
+              <svg 
+                className={`w-6 h-6 transform transition-transform ${isArtStopsExpanded ? 'rotate-180' : ''}`}
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {isArtStopsExpanded && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {tour.locations.map((location, index) => (
                   <div
@@ -244,8 +263,11 @@ export default function YourTour() {
                   </div>
                 ))}
               </div>
-            </div>
+            )}
+          </div>
 
+          {/* Walking Directions */}
+          <div className="p-4">
             <div>
               <h2 className="text-xl font-semibold mb-4">Walking Directions</h2>
               <div className="flex justify-end mb-4 space-x-4">
@@ -303,16 +325,22 @@ export default function YourTour() {
                         </div>
                       </div>
                       {isArtStop && artLocation && (
-                        <div className="ml-9 mt-2 mb-4 bg-white rounded-lg shadow-lg p-4">
-                          <h3 className="font-bold text-lg mb-2">{artLocation.title}</h3>
-                          <p className="text-gray-600 mb-2">by {artLocation.artist}</p>
-                          {artLocation.image && (
-                            <img
-                              src={artLocation.image}
-                              alt={artLocation.title}
-                              className="w-full h-48 object-cover rounded"
-                            />
-                          )}
+                        <div className="ml-9 mt-2 mb-4">
+                          <div className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                               onClick={() => setSelectedMarker(tour.locations.findIndex(loc => loc.title === artLocation.title))}>
+                            {artLocation.image && (
+                              <img
+                                src={artLocation.image}
+                                alt={artLocation.title}
+                                className="w-24 h-24 object-cover rounded"
+                              />
+                            )}
+                            <div>
+                              <h3 className="font-bold text-lg">{artLocation.title}</h3>
+                              <p className="text-gray-600">by {artLocation.artist}</p>
+                              <p className="text-sm text-blue-500 mt-1">Click to view details</p>
+                            </div>
+                          </div>
                         </div>
                       )}
                       {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
