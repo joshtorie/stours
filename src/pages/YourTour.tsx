@@ -4,56 +4,45 @@ import { GoogleMap, DirectionsRenderer, InfoWindow, MarkerF } from '@react-googl
 import { DEFAULT_MAP_OPTIONS } from '../config/maps';
 import GoogleMapsWrapper from '../components/maps/GoogleMapsWrapper';
 import ARViewer from '../components/ARViewer';
-import type { TourVariation } from '../types/tour';
+import type { TourVariation, Location as ArtLocation } from '../types/tour';
+
+// Google Maps types
+type LatLngLiteral = google.maps.LatLngLiteral;
+type DirectionsResult = google.maps.DirectionsResult;
+type LatLng = google.maps.LatLng;
 
 interface TourState {
   selectedRoute: TourVariation;
   duration: number;
 }
 
-export default function YourTour() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { selectedRoute: tour, duration } = location.state as TourState;
-  const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
-  const [userLocation, setUserLocation] = React.useState<google.maps.LatLng | null>(null);
-  const [currentStepIndex, setCurrentStepIndex] = React.useState<number>(0);
-  const [isPaused, setIsPaused] = React.useState<boolean>(false);
-  const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
-  const [maximizedArtCard, setMaximizedArtCard] = React.useState<number | null>(null);
-  const [showARViewer, setShowARViewer] = React.useState(false);
-  const [selectedArtwork, setSelectedArtwork] = React.useState<any | null>(null);
+interface ArtworkDisplay {
+  location: ArtLocation;
+  index: number;
+  distance: number;
+}
 
-  // Convert serialized response back to DirectionsResult
-  const directionsResult = React.useMemo(() => {
-    if (!tour?.response || !window.google) return null;
+// Custom hook for Google Maps loading state
+function useGoogleMaps() {
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  const [error, setError] = React.useState<Error | null>(null);
 
-    return {
-      routes: tour.response.routes.map(route => ({
-        ...route,
-        bounds: new google.maps.LatLngBounds(
-          new google.maps.LatLng(route.bounds.south, route.bounds.west),
-          new google.maps.LatLng(route.bounds.north, route.bounds.east)
-        ),
-        legs: route.legs.map(leg => ({
-          ...leg,
-          steps: leg.steps.map(step => ({
-            ...step,
-            path: step.path?.map(point => new google.maps.LatLng(point.lat, point.lng)),
-          })),
-        })),
-        overview_path: route.overview_path?.map(
-          point => new google.maps.LatLng(point.lat, point.lng)
-        ),
-      })),
-    };
-  }, [tour, window.google]);
-
-  // Watch user's location
   React.useEffect(() => {
-    if (!navigator.geolocation || !window.google || !tour?.response) {
-      return;
+    if (window.google) {
+      setIsLoaded(true);
     }
+  }, []);
+
+  return { isLoaded, error };
+}
+
+// Custom hook for user location
+function useUserLocation(isGoogleLoaded: boolean) {
+  const [location, setLocation] = React.useState<LatLng | null>(null);
+  const [error, setError] = React.useState<GeolocationPositionError | null>(null);
+
+  React.useEffect(() => {
+    if (!navigator.geolocation || !isGoogleLoaded) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -61,28 +50,12 @@ export default function YourTour() {
           position.coords.latitude,
           position.coords.longitude
         );
-        setUserLocation(newLocation);
-
-        // Update current step based on user location if tour is not paused
-        if (!isPaused) {
-          const leg = tour.response.routes[0].legs[0];
-          // Find the closest step to the user's current location
-          const closestStepIndex = leg.steps.findIndex((step, index) => {
-            const stepPath = step.path?.[0];
-            if (!stepPath) return false;
-            const distance = google.maps.geometry.spherical.computeDistanceBetween(
-              new google.maps.LatLng(stepPath.lat, stepPath.lng),
-              newLocation
-            );
-            return distance < 50; // Within 50 meters
-          });
-          if (closestStepIndex !== -1) {
-            setCurrentStepIndex(closestStepIndex);
-          }
-        }
+        setLocation(newLocation);
+        setError(null);
       },
       (error) => {
         console.error('Error getting location:', error);
+        setError(error);
       },
       {
         enableHighAccuracy: true,
@@ -91,22 +64,138 @@ export default function YourTour() {
       }
     );
 
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isGoogleLoaded]);
+
+  return { location, error };
+}
+
+// Custom hook for finding nearby art
+function useNearbyArt(step: google.maps.DirectionsStep | null, locations: ArtLocation[], isGoogleLoaded: boolean): ArtworkDisplay | null {
+  return React.useMemo(() => {
+    if (!step?.path?.[0] || !isGoogleLoaded || !locations.length) return null;
+
+    const stepLocation = step.path[0];
+    let closestArt: ArtworkDisplay | null = null;
+    let minDistance = Infinity;
+
+    locations.forEach((loc, index) => {
+      const distance = google.maps.geometry.spherical.computeDistanceBetween(
+        { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
+        { lat: stepLocation.lat, lng: stepLocation.lng } as LatLngLiteral
+      );
+
+      if (distance < 50 && distance < minDistance) {
+        minDistance = distance;
+        closestArt = { location: loc, index, distance };
+      }
+    });
+
+    return closestArt;
+  }, [step, locations, isGoogleLoaded]);
+}
+
+export default function YourTour() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { selectedRoute: tour, duration } = location.state as TourState;
+  
+  // Custom hooks
+  const { isLoaded: isGoogleLoaded, error: mapsError } = useGoogleMaps();
+  const { location: userLocation, error: locationError } = useUserLocation(isGoogleLoaded);
+  
+  // State
+  const [currentStepIndex, setCurrentStepIndex] = React.useState<number>(0);
+  const [isPaused, setIsPaused] = React.useState<boolean>(false);
+  const [maximizedArtCard, setMaximizedArtCard] = React.useState<number | null>(null);
+  const [showARViewer, setShowARViewer] = React.useState(false);
+  const [selectedArtwork, setSelectedArtwork] = React.useState<ArtLocation | null>(null);
+  const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
+  const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
+
+  // Convert serialized response back to DirectionsResult
+  const directionsResult = React.useMemo((): DirectionsResult | null => {
+    if (!tour?.response || !isGoogleLoaded) return null;
+
+    return {
+      routes: tour.response.routes.map(route => ({
+        ...route,
+        bounds: new google.maps.LatLngBounds(
+          { lat: route.bounds.south, lng: route.bounds.west } as LatLngLiteral,
+          { lat: route.bounds.north, lng: route.bounds.east } as LatLngLiteral
+        ),
+        legs: route.legs.map(leg => ({
+          ...leg,
+          steps: leg.steps.map(step => ({
+            ...step,
+            path: step.path?.map(point => ({ lat: point.lat, lng: point.lng } as LatLngLiteral)),
+          })),
+        })),
+        overview_path: route.overview_path?.map(
+          point => ({ lat: point.lat, lng: point.lng } as LatLngLiteral)
+        ),
+      })),
     };
-  }, [tour, isPaused, window.google]);
+  }, [tour, isGoogleLoaded]);
+
+  // Update current step based on user location
+  React.useEffect(() => {
+    if (!userLocation || !tour?.response || isPaused) return;
+
+    const leg = tour.response.routes[0].legs[0];
+    let closestDistance = Infinity;
+    let closestIndex = -1;
+
+    leg.steps.forEach((step, index) => {
+      const stepPath = step.path?.[0];
+      if (!stepPath) return;
+
+      const distance = google.maps.geometry.spherical.computeDistanceBetween(
+        { lat: stepPath.lat, lng: stepPath.lng } as LatLngLiteral,
+        { lat: userLocation.lat(), lng: userLocation.lng() } as LatLngLiteral
+      );
+
+      if (distance < 50 && distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    if (closestIndex !== -1) {
+      setCurrentStepIndex(closestIndex);
+    }
+  }, [userLocation, tour, isPaused, isGoogleLoaded]);
 
   if (!tour || !tour.response) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">No Tour Selected</h1>
-        <p>Please go back and select a tour first.</p>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
-        >
-          Back to Tour Options
-        </button>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <h2 className="font-bold mb-2">Error Loading Tour</h2>
+          <p>Unable to load tour data. Please try again.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (mapsError) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <h2 className="font-bold mb-2">Google Maps Error</h2>
+          <p>{mapsError.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (locationError) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+          <h2 className="font-bold mb-2">Location Access Required</h2>
+          <p>Please enable location access to use the tour navigation.</p>
+          <p className="text-sm mt-2">{locationError.message}</p>
+        </div>
       </div>
     );
   }
@@ -119,7 +208,7 @@ export default function YourTour() {
   };
 
   // Function to handle AR button click
-  const handleARClick = (artwork: any) => {
+  const handleARClick = (artwork: ArtLocation) => {
     if (artwork.arContent) {
       setSelectedArtwork(artwork);
       setShowARViewer(true);
@@ -259,7 +348,7 @@ export default function YourTour() {
                   <div
                     key={index}
                     className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 cursor-pointer"
-                    onClick={() => setSelectedMarker(index)}
+                    onClick={() => handleArtCardClick(index)}
                   >
                     <div className="flex items-start">
                       <div className="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3">
@@ -309,21 +398,27 @@ export default function YourTour() {
               </div>
               <div className="space-y-4">
                 {leg.steps.map((step, index) => {
-                  const isArtStop = window.google && tour.locations.some(loc => 
-                    google.maps.geometry.spherical.computeDistanceBetween(
-                      new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
-                      step.path?.[0] || new google.maps.LatLng(0, 0)
-                    ) < 50
-                  );
+                  const isArtStop = isGoogleLoaded && tour.locations.some(loc => {
+                    const stepLocation = step.path?.[0];
+                    if (!stepLocation) return false;
+                    return google.maps.geometry.spherical.computeDistanceBetween(
+                      { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
+                      { lat: stepLocation.lat, lng: stepLocation.lng } as LatLngLiteral
+                    ) < 50;
+                  });
                   
-                  const artLocation = window.google && tour.locations.find(loc => 
-                    google.maps.geometry.spherical.computeDistanceBetween(
-                      new google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
-                      step.path?.[0] || new google.maps.LatLng(0, 0)
-                    ) < 50
-                  );
+                  const artLocation = isGoogleLoaded && tour.locations.find(loc => {
+                    const stepLocation = step.path?.[0];
+                    if (!stepLocation) return false;
+                    return google.maps.geometry.spherical.computeDistanceBetween(
+                      { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
+                      { lat: stepLocation.lat, lng: stepLocation.lng } as LatLngLiteral
+                    ) < 50;
+                  });
 
                   const artLocationIndex = artLocation ? tour.locations.findIndex(loc => loc.title === artLocation.title) : -1;
+
+                  const nearbyArt = useNearbyArt(step, tour.locations, isGoogleLoaded);
 
                   return (
                     <React.Fragment key={index}>
@@ -353,7 +448,10 @@ export default function YourTour() {
                                   <p className="text-gray-600">by {artLocation.artist}</p>
                                 </div>
                                 <button 
-                                  onClick={() => setMaximizedArtCard(null)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMaximizedArtCard(null);
+                                  }}
                                   className="text-gray-500 hover:text-gray-700"
                                 >
                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -416,7 +514,10 @@ export default function YourTour() {
                           ) : (
                             <div 
                               className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={() => handleArtCardClick(artLocationIndex)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArtCardClick(artLocationIndex);
+                              }}
                             >
                               {artLocation.imageUrl && (
                                 <img
