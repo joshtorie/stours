@@ -5,6 +5,17 @@ import { DEFAULT_MAP_OPTIONS } from '../config/maps';
 import GoogleMapsWrapper from '../components/maps/GoogleMapsWrapper';
 import ARViewer from '../components/ARViewer';
 import type { TourVariation, Location as ArtLocation } from '../types/tour';
+import { 
+  toLatLngLiteral, 
+  createLatLng, 
+  safePathToLatLng, 
+  isWithinDistance,
+  createLatLngBounds,
+  getBoundsPoints
+} from '../utils/mapUtils';
+import type { SerializableDirectionsResult } from '../types/maps';
+import { isSerializableDirectionsResult } from '../types/maps';
+import { validateDirectionsResult, logValidationErrors } from '../utils/routeValidation';
 
 // Google Maps types
 type LatLngLiteral = google.maps.LatLngLiteral;
@@ -12,7 +23,9 @@ type DirectionsResult = google.maps.DirectionsResult;
 type LatLng = google.maps.LatLng;
 
 interface TourState {
-  selectedRoute: TourVariation;
+  selectedRoute: TourVariation & {
+    response: SerializableDirectionsResult;
+  };
   duration: number;
 }
 
@@ -46,10 +59,7 @@ function useUserLocation(isGoogleLoaded: boolean) {
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const newLocation = new google.maps.LatLng(
-          position.coords.latitude,
-          position.coords.longitude
-        );
+        const newLocation = createLatLng(position.coords.latitude, position.coords.longitude);
         setLocation(newLocation);
         setError(null);
       },
@@ -75,14 +85,14 @@ function useNearbyArt(step: google.maps.DirectionsStep | null, locations: ArtLoc
   return React.useMemo(() => {
     if (!step?.path?.[0] || !isGoogleLoaded || !locations.length) return null;
 
-    const stepLocation = step.path[0];
+    const stepLocation = safePathToLatLng(step.path[0]);
     let closestArt: ArtworkDisplay | null = null;
     let minDistance = Infinity;
 
     locations.forEach((loc, index) => {
       const distance = google.maps.geometry.spherical.computeDistanceBetween(
         { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
-        { lat: stepLocation.lat, lng: stepLocation.lng } as LatLngLiteral
+        stepLocation
       );
 
       if (distance < 50 && distance < minDistance) {
@@ -117,54 +127,63 @@ export default function YourTour() {
   const directionsResult = React.useMemo((): DirectionsResult | null => {
     if (!tour?.response || !isGoogleLoaded) return null;
 
-    return {
-      routes: tour.response.routes.map(route => ({
-        ...route,
-        bounds: new google.maps.LatLngBounds(
-          { lat: route.bounds.south, lng: route.bounds.west } as LatLngLiteral,
-          { lat: route.bounds.north, lng: route.bounds.east } as LatLngLiteral
-        ),
-        legs: route.legs.map(leg => ({
-          ...leg,
-          steps: leg.steps.map(step => ({
-            ...step,
-            path: step.path?.map(point => ({ lat: point.lat, lng: point.lng } as LatLngLiteral)),
-          })),
-        })),
-        overview_path: route.overview_path?.map(
-          point => ({ lat: point.lat, lng: point.lng } as LatLngLiteral)
-        ),
-      })),
-    };
-  }, [tour, isGoogleLoaded]);
-
-  // Update current step based on user location
-  React.useEffect(() => {
-    if (!userLocation || !tour?.response || isPaused) return;
-
-    const leg = tour.response.routes[0].legs[0];
-    let closestDistance = Infinity;
-    let closestIndex = -1;
-
-    leg.steps.forEach((step, index) => {
-      const stepPath = step.path?.[0];
-      if (!stepPath) return;
-
-      const distance = google.maps.geometry.spherical.computeDistanceBetween(
-        { lat: stepPath.lat, lng: stepPath.lng } as LatLngLiteral,
-        { lat: userLocation.lat(), lng: userLocation.lng() } as LatLngLiteral
-      );
-
-      if (distance < 50 && distance < closestDistance) {
-        closestDistance = distance;
-        closestIndex = index;
-      }
-    });
-
-    if (closestIndex !== -1) {
-      setCurrentStepIndex(closestIndex);
+    // Validate the serialized response
+    if (!isSerializableDirectionsResult(tour.response)) {
+      console.error('Invalid serialized directions result');
+      return null;
     }
-  }, [userLocation, tour, isPaused, isGoogleLoaded]);
+
+    // Deep validation of route data
+    const validationResult = validateDirectionsResult(tour.response);
+    if (!validationResult.isValid) {
+      logValidationErrors(validationResult.errors);
+      return null;
+    }
+
+    try {
+      return {
+        routes: tour.response.routes.map(route => ({
+          ...route,
+          bounds: createLatLngBounds({
+            southwest: { 
+              lat: route.bounds.getSouthWest().lat(), 
+              lng: route.bounds.getSouthWest().lng() 
+            },
+            northeast: { 
+              lat: route.bounds.getNorthEast().lat(), 
+              lng: route.bounds.getNorthEast().lng() 
+            }
+          }),
+          legs: route.legs.map(leg => ({
+            ...leg,
+            steps: leg.steps.map(step => ({
+              ...step,
+              path: step.path?.map(point => createLatLng(point.lat(), point.lng())),
+              start_location: createLatLng(step.start_location.lat(), step.start_location.lng()),
+              end_location: createLatLng(step.end_location.lat(), step.end_location.lng())
+            })),
+            start_location: createLatLng(leg.start_location.lat(), leg.start_location.lng()),
+            end_location: createLatLng(leg.end_location.lat(), leg.end_location.lng()),
+            via_waypoints: leg.via_waypoints?.map(point => 
+              createLatLng(point.lat(), point.lng())
+            ) || []
+          })),
+          overview_path: route.overview_path?.map(point => 
+            createLatLng(point.lat(), point.lng())
+          ),
+          warnings: route.warnings || [],
+          waypoint_order: route.waypoint_order || [],
+          overview_polyline: route.overview_polyline?.points || '',
+          summary: route.summary || ''
+        })) as google.maps.DirectionsRoute[],
+        request: tour.response.request || null,
+        geocoded_waypoints: tour.response.geocoded_waypoints || []
+      };
+    } catch (error) {
+      console.error('Error converting directions result:', error);
+      return null;
+    }
+  }, [tour, isGoogleLoaded]);
 
   if (!tour || !tour.response) {
     return (
@@ -172,6 +191,11 @@ export default function YourTour() {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           <h2 className="font-bold mb-2">Error Loading Tour</h2>
           <p>Unable to load tour data. Please try again.</p>
+          {process.env.NODE_ENV === 'development' && (
+            <pre className="mt-2 text-xs whitespace-pre-wrap">
+              {JSON.stringify(tour, null, 2)}
+            </pre>
+          )}
         </div>
       </div>
     );
@@ -183,6 +207,11 @@ export default function YourTour() {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           <h2 className="font-bold mb-2">Google Maps Error</h2>
           <p>{mapsError.message}</p>
+          {process.env.NODE_ENV === 'development' && (
+            <pre className="mt-2 text-xs whitespace-pre-wrap">
+              {JSON.stringify(mapsError, null, 2)}
+            </pre>
+          )}
         </div>
       </div>
     );
@@ -195,6 +224,11 @@ export default function YourTour() {
           <h2 className="font-bold mb-2">Location Access Required</h2>
           <p>Please enable location access to use the tour navigation.</p>
           <p className="text-sm mt-2">{locationError.message}</p>
+          {process.env.NODE_ENV === 'development' && (
+            <pre className="mt-2 text-xs whitespace-pre-wrap">
+              {JSON.stringify(locationError, null, 2)}
+            </pre>
+          )}
         </div>
       </div>
     );
@@ -399,21 +433,29 @@ export default function YourTour() {
               <div className="space-y-4">
                 {leg.steps.map((step, index) => {
                   const isArtStop = isGoogleLoaded && tour.locations.some(loc => {
-                    const stepLocation = step.path?.[0];
-                    if (!stepLocation) return false;
-                    return google.maps.geometry.spherical.computeDistanceBetween(
-                      { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
-                      { lat: stepLocation.lat, lng: stepLocation.lng } as LatLngLiteral
-                    ) < 50;
+                    const stepPath = step.path?.[0];
+                    if (!stepPath) return false;
+
+                    const stepLatLng = toLatLngLiteral(stepPath);
+                    const locationLatLng = {
+                      lat: loc.coordinates.lat,
+                      lng: loc.coordinates.lng
+                    } as LatLngLiteral;
+
+                    return isWithinDistance(stepLatLng, locationLatLng, 50);
                   });
                   
                   const artLocation = isGoogleLoaded && tour.locations.find(loc => {
-                    const stepLocation = step.path?.[0];
-                    if (!stepLocation) return false;
-                    return google.maps.geometry.spherical.computeDistanceBetween(
-                      { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
-                      { lat: stepLocation.lat, lng: stepLocation.lng } as LatLngLiteral
-                    ) < 50;
+                    const stepPath = step.path?.[0];
+                    if (!stepPath) return false;
+
+                    const stepLatLng = toLatLngLiteral(stepPath);
+                    const locationLatLng = {
+                      lat: loc.coordinates.lat,
+                      lng: loc.coordinates.lng
+                    } as LatLngLiteral;
+
+                    return isWithinDistance(stepLatLng, locationLatLng, 50);
                   });
 
                   const artLocationIndex = artLocation ? tour.locations.findIndex(loc => loc.title === artLocation.title) : -1;

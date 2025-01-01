@@ -4,6 +4,13 @@ import { GoogleMap, DirectionsService, DirectionsRenderer, MarkerF } from '@reac
 import { DEFAULT_MAP_OPTIONS } from '../config/maps';
 import GoogleMapsWrapper from '../components/maps/GoogleMapsWrapper';
 import type { TourVariation, TourState } from '../types/tour';
+import type { 
+  SerializableDirectionsResult, 
+  SerializableLatLng, 
+  SerializableBounds 
+} from '../types/maps';
+import { isSerializableDirectionsResult } from '../types/maps';
+import { validateDirectionsResult, logValidationErrors } from '../utils/routeValidation';
 
 export default function TourOptions() {
   const location = useLocation();
@@ -14,6 +21,7 @@ export default function TourOptions() {
   const [calculatingRoutes, setCalculatingRoutes] = useState<Set<number>>(new Set());
   const [selectedTour, setSelectedTour] = useState<number | null>(null);
   const [requestCount, setRequestCount] = useState<Record<number, number>>({});
+  const [error, setError] = useState<{ title: string; message: string; details: string } | null>(null);
 
   // Request directions for all tours when component mounts
   useEffect(() => {
@@ -95,46 +103,101 @@ export default function TourOptions() {
       return;
     }
 
-    // Create a serializable version of the tour
-    const serializableTour = {
-      ...tourVariations[index],
-      estimatedTime: tourVariations[index].estimatedTime,
-      distance: tourVariations[index].distance,
-      response: {
-        routes: tourVariations[index].response.routes.map(route => ({
-          bounds: {
-            north: route.bounds.getNorthEast().lat(),
-            south: route.bounds.getSouthWest().lat(),
-            east: route.bounds.getNorthEast().lng(),
-            west: route.bounds.getSouthWest().lng(),
-          },
-          legs: route.legs.map(leg => ({
-            distance: { text: leg.distance?.text, value: leg.distance?.value },
-            duration: { text: leg.duration?.text, value: leg.duration?.value },
-            end_address: leg.end_address,
-            start_address: leg.start_address,
-            steps: leg.steps.map(step => ({
-              distance: { text: step.distance?.text, value: step.distance?.value },
-              duration: { text: step.duration?.text, value: step.duration?.value },
-              instructions: step.instructions,
-              path: step.path?.map(point => ({ lat: point.lat(), lng: point.lng() })),
-              travel_mode: step.travel_mode,
+    try {
+      // Create a serializable version of the tour
+      const serializableTour = {
+        ...tourVariations[index],
+        estimatedTime: tourVariations[index].estimatedTime,
+        distance: tourVariations[index].distance,
+        response: {
+          routes: tourVariations[index].response.routes.map(route => ({
+            bounds: {
+              getNorthEast: () => ({
+                lat: () => route.bounds.getNorthEast().lat(),
+                lng: () => route.bounds.getNorthEast().lng()
+              }),
+              getSouthWest: () => ({
+                lat: () => route.bounds.getSouthWest().lat(),
+                lng: () => route.bounds.getSouthWest().lng()
+              })
+            } as SerializableBounds,
+            legs: route.legs.map(leg => ({
+              distance: { text: leg.distance?.text, value: leg.distance?.value },
+              duration: { text: leg.duration?.text, value: leg.duration?.value },
+              end_address: leg.end_address,
+              start_address: leg.start_address,
+              end_location: {
+                lat: () => leg.end_location.lat(),
+                lng: () => leg.end_location.lng()
+              } as SerializableLatLng,
+              start_location: {
+                lat: () => leg.start_location.lat(),
+                lng: () => leg.start_location.lng()
+              } as SerializableLatLng,
+              steps: leg.steps.map(step => ({
+                distance: { text: step.distance?.text, value: step.distance?.value },
+                duration: { text: step.duration?.text, value: step.duration?.value },
+                instructions: step.instructions,
+                path: step.path?.map(point => ({
+                  lat: () => point.lat(),
+                  lng: () => point.lng()
+                } as SerializableLatLng)),
+                start_location: {
+                  lat: () => step.start_location.lat(),
+                  lng: () => step.start_location.lng()
+                } as SerializableLatLng,
+                end_location: {
+                  lat: () => step.end_location.lat(),
+                  lng: () => step.end_location.lng()
+                } as SerializableLatLng,
+                travel_mode: step.travel_mode,
+              })),
+              via_waypoints: leg.via_waypoints?.map(point => ({
+                lat: () => point.lat(),
+                lng: () => point.lng()
+              } as SerializableLatLng))
             })),
+            overview_path: route.overview_path?.map(point => ({
+              lat: () => point.lat(),
+              lng: () => point.lng()
+            } as SerializableLatLng)),
+            warnings: route.warnings || [],
+            waypoint_order: route.waypoint_order || [],
+            overview_polyline: { points: route.overview_polyline?.points || '' },
+            summary: route.summary || '',
+            copyrights: route.copyrights || ''
           })),
-          overview_path: route.overview_path?.map(point => ({
-            lat: point.lat(),
-            lng: point.lng()
-          })),
-        })),
-      }
-    };
+          request: tourVariations[index].response.request || null,
+          geocoded_waypoints: tourVariations[index].response.geocoded_waypoints || []
+        } as SerializableDirectionsResult
+      };
 
-    navigate('/your-tour', {
-      state: {
-        selectedRoute: serializableTour,
-        duration
+      // Validate the serialized result
+      const validationResult = validateDirectionsResult(serializableTour.response);
+      if (!validationResult.isValid) {
+        logValidationErrors(validationResult.errors);
+        setError({
+          title: 'Invalid Route Data',
+          message: 'There was an error processing the route data. Please try again or choose a different route.',
+          details: validationResult.errors.map(e => `${e.path ? `[${e.path}] ` : ''}${e.field}: ${e.message}`).join('\n')
+        });
+        return;
       }
-    });
+
+      navigate('/your-tour', {
+        state: {
+          selectedRoute: serializableTour,
+          duration
+        }
+      });
+    } catch (error) {
+      console.error('Error serializing route:', error);
+      setError({
+        title: 'Route Processing Error',
+        message: 'An unexpected error occurred while processing the route. Please try again.',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
   };
 
   // Create DirectionsService component
@@ -165,6 +228,13 @@ export default function TourOptions() {
   return (
     <GoogleMapsWrapper>
       <div className="container mx-auto p-4">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <h2 className="font-bold">{error.title}</h2>
+            <p className="mb-2">{error.message}</p>
+            <pre className="text-sm">{error.details}</pre>
+          </div>
+        )}
         <h1 className="text-2xl font-bold mb-6">
           {tourVariations.length > 1 ? 'Choose Your Tour' : 'Your Optimized Tour'}
         </h1>
