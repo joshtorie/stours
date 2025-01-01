@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { GoogleMap, DirectionsRenderer, InfoWindow, MarkerF } from '@react-google-maps/api';
 import { DEFAULT_MAP_OPTIONS } from '../config/maps';
 import GoogleMapsWrapper from '../components/maps/GoogleMapsWrapper';
+import ARViewer from '../components/ARViewer';
 import type { TourVariation } from '../types/tour';
 
 interface TourState {
@@ -20,6 +21,8 @@ export default function YourTour() {
   const [isPaused, setIsPaused] = React.useState<boolean>(false);
   const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
   const [maximizedArtCard, setMaximizedArtCard] = React.useState<number | null>(null);
+  const [showARViewer, setShowARViewer] = React.useState(false);
+  const [selectedArtwork, setSelectedArtwork] = React.useState<any | null>(null);
 
   // Convert serialized response back to DirectionsResult
   const directionsResult = React.useMemo(() => {
@@ -115,6 +118,14 @@ export default function YourTour() {
     setMaximizedArtCard(maximizedArtCard === locationIndex ? null : locationIndex);
   };
 
+  // Function to handle AR button click
+  const handleARClick = (artwork: any) => {
+    if (artwork.arContent) {
+      setSelectedArtwork(artwork);
+      setShowARViewer(true);
+    }
+  };
+
   return (
     <GoogleMapsWrapper>
       <div className="container mx-auto p-4">
@@ -174,9 +185,9 @@ export default function YourTour() {
                       {tour.locations[selectedMarker].title}
                     </h3>
                     <p className="text-sm mb-2">by {tour.locations[selectedMarker].artist}</p>
-                    {tour.locations[selectedMarker].image && (
+                    {tour.locations[selectedMarker].imageUrl && (
                       <img
-                        src={tour.locations[selectedMarker].image}
+                        src={tour.locations[selectedMarker].imageUrl}
                         alt={tour.locations[selectedMarker].title}
                         className="w-full h-32 object-cover rounded"
                       />
@@ -259,9 +270,9 @@ export default function YourTour() {
                         <p className="text-sm text-gray-600">by {location.artist}</p>
                       </div>
                     </div>
-                    {location.image && (
+                    {location.imageUrl && (
                       <img
-                        src={location.image}
+                        src={location.imageUrl}
                         alt={location.title}
                         className="w-full h-32 object-cover rounded mt-2"
                       />
@@ -350,22 +361,56 @@ export default function YourTour() {
                                   </svg>
                                 </button>
                               </div>
-                              {artLocation.image && (
+                              {artLocation.imageUrl && (
                                 <img
-                                  src={artLocation.image}
+                                  src={artLocation.imageUrl}
                                   alt={artLocation.title}
                                   className="w-full h-64 object-cover rounded mb-4"
                                 />
                               )}
-                              {/* Placeholder for additional buttons/interactions */}
-                              <div className="flex space-x-4 mt-4">
-                                <button className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                                  Share
+                              {/* Action buttons */}
+                              <div className="flex flex-wrap gap-4 mt-4">
+                                {artLocation.arEnabled && artLocation.arContent && (
+                                  <button 
+                                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center space-x-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleARClick(artLocation);
+                                    }}
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>View in AR</span>
+                                  </button>
+                                )}
+                                {artLocation.shopUrl && (
+                                  <a
+                                    href={artLocation.shopUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center space-x-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                    </svg>
+                                    <span>Shop</span>
+                                  </a>
+                                )}
+                                <button 
+                                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center space-x-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Add share logic here
+                                    console.log('Sharing artwork');
+                                  }}
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                                  </svg>
+                                  <span>Share</span>
                                 </button>
-                                <button className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-                                  Save
-                                </button>
-                                {/* Add more buttons as needed */}
                               </div>
                             </div>
                           ) : (
@@ -373,9 +418,9 @@ export default function YourTour() {
                               className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                               onClick={() => handleArtCardClick(artLocationIndex)}
                             >
-                              {artLocation.image && (
+                              {artLocation.imageUrl && (
                                 <img
-                                  src={artLocation.image}
+                                  src={artLocation.imageUrl}
                                   alt={artLocation.title}
                                   className="w-24 h-24 object-cover rounded"
                                 />
@@ -398,6 +443,15 @@ export default function YourTour() {
           </div>
         </div>
       </div>
+      {showARViewer && selectedArtwork?.arContent && (
+        <ARViewer
+          artwork={selectedArtwork.arContent}
+          onClose={() => {
+            setShowARViewer(false);
+            setSelectedArtwork(null);
+          }}
+        />
+      )}
     </GoogleMapsWrapper>
   );
 }
