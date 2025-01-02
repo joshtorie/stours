@@ -284,83 +284,78 @@ export default function YourTour() {
         return null;
       }
 
-      // Create bounds first
-      const bounds = new google.maps.LatLngBounds();
-      
-      // Convert the first route
+      // Create bounds once and reuse
+      const bounds = new google.maps.LatLngBounds(
+        new google.maps.LatLng(firstRoute.bounds.southwest.lat, firstRoute.bounds.southwest.lng),
+        new google.maps.LatLng(firstRoute.bounds.northeast.lat, firstRoute.bounds.northeast.lng)
+      );
+
+      // Create a stable reference for the route
       const convertedRoute: google.maps.DirectionsRoute = {
         bounds,
-        legs: firstRoute.legs.map(leg => ({
-          distance: leg.distance,
-          duration: leg.duration,
-          end_address: leg.end_address,
-          end_location: new google.maps.LatLng(
-            typeof leg.end_location.lat === 'function' ? leg.end_location.lat() : leg.end_location.lat,
-            typeof leg.end_location.lng === 'function' ? leg.end_location.lng() : leg.end_location.lng
-          ),
-          start_address: leg.start_address,
-          start_location: new google.maps.LatLng(
-            typeof leg.start_location.lat === 'function' ? leg.start_location.lat() : leg.start_location.lat,
-            typeof leg.start_location.lng === 'function' ? leg.start_location.lng() : leg.start_location.lng
-          ),
-          steps: leg.steps.map(step => ({
-            distance: step.distance,
-            duration: step.duration,
-            end_location: new google.maps.LatLng(
-              typeof step.end_location.lat === 'function' ? step.end_location.lat() : step.end_location.lat,
-              typeof step.end_location.lng === 'function' ? step.end_location.lng() : step.end_location.lng
-            ),
-            instructions: step.instructions,
-            path: (step.path || []).map(point => new google.maps.LatLng(
-              typeof point.lat === 'function' ? point.lat() : point.lat,
-              typeof point.lng === 'function' ? point.lng() : point.lng
-            )),
-            start_location: new google.maps.LatLng(
-              typeof step.start_location.lat === 'function' ? step.start_location.lat() : step.start_location.lat,
-              typeof step.start_location.lng === 'function' ? step.start_location.lng() : step.start_location.lng
-            ),
-            travel_mode: step.travel_mode
-          })),
-          via_waypoints: (leg.via_waypoints || []).map(point => new google.maps.LatLng(
-            typeof point.lat === 'function' ? point.lat() : point.lat,
-            typeof point.lng === 'function' ? point.lng() : point.lng
-          ))
-        })),
-        overview_path: (firstRoute.overview_path || []).map(point => {
-          // Handle both function and property access
-          const lat = typeof point.lat === 'function' ? point.lat() : point.lat;
-          const lng = typeof point.lng === 'function' ? point.lng() : point.lng;
-          return new google.maps.LatLng(lat, lng);
+        legs: firstRoute.legs.map(leg => {
+          const startLocation = new google.maps.LatLng(leg.start_location.lat, leg.start_location.lng);
+          const endLocation = new google.maps.LatLng(leg.end_location.lat, leg.end_location.lng);
+
+          return {
+            distance: leg.distance,
+            duration: leg.duration,
+            end_address: leg.end_address,
+            end_location: endLocation,
+            start_address: leg.start_address,
+            start_location: startLocation,
+            steps: leg.steps.map(step => {
+              const stepStart = new google.maps.LatLng(step.start_location.lat, step.start_location.lng);
+              const stepEnd = new google.maps.LatLng(step.end_location.lat, step.end_location.lng);
+              const path = (step.path || []).map(point => 
+                new google.maps.LatLng(point.lat, point.lng)
+              );
+
+              return {
+                distance: step.distance,
+                duration: step.duration,
+                end_location: stepEnd,
+                instructions: step.instructions,
+                path,
+                start_location: stepStart,
+                travel_mode: step.travel_mode
+              };
+            }),
+            via_waypoints: (leg.via_waypoints || []).map(point => 
+              new google.maps.LatLng(point.lat, point.lng)
+            )
+          };
         }),
-        overview_polyline: typeof firstRoute.overview_polyline === 'string' 
-          ? firstRoute.overview_polyline 
-          : firstRoute.overview_polyline?.points || '',
-        warnings: firstRoute.warnings || [],
-        waypoint_order: firstRoute.waypoint_order || []
+        overview_path: (firstRoute.overview_path || []).map(point => 
+          new google.maps.LatLng(point.lat, point.lng)
+        ),
+        overview_polyline: {
+          points: typeof firstRoute.overview_polyline === 'string' 
+            ? firstRoute.overview_polyline 
+            : firstRoute.overview_polyline?.points || ''
+        },
+        warnings: [...(firstRoute.warnings || [])],
+        waypoint_order: [...(firstRoute.waypoint_order || [])],
+        summary: firstRoute.summary || ''
       };
 
-      // Update bounds with all points
-      convertedRoute.overview_path?.forEach(point => bounds.extend(point));
-      convertedRoute.legs.forEach(leg => {
-        bounds.extend(leg.start_location);
-        bounds.extend(leg.end_location);
-        leg.steps.forEach(step => {
-          bounds.extend(step.start_location);
-          bounds.extend(step.end_location);
-          step.path?.forEach(point => bounds.extend(point));
-        });
-      });
-
-      return {
+      // Create a stable reference for the final result
+      const result: google.maps.DirectionsResult = {
         routes: [convertedRoute],
-        geocoded_waypoints: simplifiedState.route.geocoded_waypoints || [],
-        request: simplifiedState.route.request || null
+        geocoded_waypoints: simplifiedState.route.geocoded_waypoints?.map(waypoint => ({
+          place_id: waypoint.place_id || '',
+          types: [...(waypoint.types || [])],
+          partial_match: waypoint.partial_match || false
+        })) || [],
+        request: null // Exclude request to avoid serialization issues
       };
+
+      return result;
     } catch (error) {
       console.error('Error converting directions result:', error);
       return null;
     }
-  }, [simplifiedState, isGoogleLoaded]);
+  }, [simplifiedState?.route, isGoogleLoaded]);
 
   // Save simplified state
   React.useEffect(() => {
