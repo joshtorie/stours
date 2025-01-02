@@ -162,16 +162,10 @@ export default function TourOptions() {
               }
             },
             legs: route.legs.map(leg => ({
-              distance: {
-                text: leg.distance?.text || '',
-                value: leg.distance?.value || 0
-              },
-              duration: {
-                text: leg.duration?.text || '',
-                value: leg.duration?.value || 0
-              },
-              end_address: leg.end_address || '',
-              start_address: leg.start_address || '',
+              distance: leg.distance,
+              duration: leg.duration,
+              end_address: leg.end_address,
+              start_address: leg.start_address,
               end_location: {
                 lat: Number(typeof leg.end_location.lat === 'function' ? leg.end_location.lat() : leg.end_location.lat),
                 lng: Number(typeof leg.end_location.lng === 'function' ? leg.end_location.lng() : leg.end_location.lng)
@@ -181,15 +175,9 @@ export default function TourOptions() {
                 lng: Number(typeof leg.start_location.lng === 'function' ? leg.start_location.lng() : leg.start_location.lng)
               },
               steps: leg.steps.map(step => ({
-                distance: {
-                  text: step.distance?.text || '',
-                  value: step.distance?.value || 0
-                },
-                duration: {
-                  text: step.duration?.text || '',
-                  value: step.duration?.value || 0
-                },
-                instructions: step.instructions || '',
+                distance: step.distance,
+                duration: step.duration,
+                instructions: step.instructions,
                 path: (step.path || []).map(point => ({
                   lat: Number(typeof point.lat === 'function' ? point.lat() : point.lat),
                   lng: Number(typeof point.lng === 'function' ? point.lng() : point.lng)
@@ -202,7 +190,7 @@ export default function TourOptions() {
                   lat: Number(typeof step.end_location.lat === 'function' ? step.end_location.lat() : step.end_location.lat),
                   lng: Number(typeof step.end_location.lng === 'function' ? step.end_location.lng() : step.end_location.lng)
                 },
-                travel_mode: step.travel_mode || 'WALKING'
+                travel_mode: step.travel_mode
               })),
               via_waypoints: (leg.via_waypoints || []).map(point => ({
                 lat: Number(typeof point.lat === 'function' ? point.lat() : point.lat),
@@ -213,35 +201,26 @@ export default function TourOptions() {
               lat: Number(typeof point.lat === 'function' ? point.lat() : point.lat),
               lng: Number(typeof point.lng === 'function' ? point.lng() : point.lng)
             })),
-            overview_polyline: {
-              points: typeof route.overview_polyline === 'string' 
-                ? route.overview_polyline 
-                : route.overview_polyline?.points || ''
-            },
-            warnings: [...(route.warnings || [])],
-            waypoint_order: [...(route.waypoint_order || [])],
-            summary: route.summary || ''
+            overview_polyline: route.overview_polyline,
+            warnings: route.warnings || [],
+            waypoint_order: route.waypoint_order || []
           })),
-          request: null, // Exclude request object as it may contain functions
-          geocoded_waypoints: (response.geocoded_waypoints || []).map(waypoint => ({
-            place_id: waypoint.place_id || '',
-            types: [...(waypoint.types || [])],
-            partial_match: waypoint.partial_match || false
-          }))
+          geocoded_waypoints: response.geocoded_waypoints || []
         }
       };
 
-      // Remove any functions or non-serializable data
-      const cleanTour = JSON.parse(JSON.stringify(serializableTour));
+      console.log('Serializable tour created:', serializableTour);
 
-      // Validate before proceeding
-      if (!isSerializableDirectionsResult(cleanTour.response)) {
+      // Validate the tour data
+      if (!isSerializableDirectionsResult(serializableTour.response)) {
+        console.error('Invalid directions result:', serializableTour.response);
         throw new Error('Failed to create serializable directions result');
       }
 
+      // Navigate to the tour page
       navigate('/your-tour', {
         state: {
-          selectedRoute: cleanTour,
+          selectedRoute: serializableTour,
           duration
         }
       });

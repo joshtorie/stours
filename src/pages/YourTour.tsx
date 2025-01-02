@@ -387,6 +387,47 @@ export default function YourTour() {
     return cleanup;
   }, [isGoogleLoaded, tour, handleLocationUpdate]);
 
+  // Load tour data from state or storage
+  React.useEffect(() => {
+    if (location.state?.selectedRoute) {
+      const { selectedRoute, duration: tourDuration } = location.state;
+      console.log('Setting tour from location state:', selectedRoute);
+      setTour(selectedRoute);
+      setDuration(tourDuration || 0);
+      // Save to storage
+      try {
+        localStorage.setItem('currentTour', JSON.stringify({
+          selectedRoute,
+          duration: tourDuration || 0,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.error('Error saving tour to storage:', error);
+      }
+    } else {
+      // Try to load from storage
+      const stored = localStorage.getItem('currentTour');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+            console.log('Loading tour from storage:', parsed);
+            setTour(parsed.selectedRoute);
+            setDuration(parsed.duration);
+          } else {
+            localStorage.removeItem('currentTour');
+            navigate('/');
+          }
+        } catch (error) {
+          console.error('Error loading stored tour:', error);
+          navigate('/');
+        }
+      } else {
+        navigate('/');
+      }
+    }
+  }, [location.state, navigate]);
+
   // Art card component
   const ArtCard = ({ 
     artLocation, 
