@@ -248,6 +248,70 @@ export default function YourTour() {
   const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
   const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
 
+  // Create stable references for Google Maps objects
+  const mapRefs = React.useRef<{
+    bounds: google.maps.LatLngBounds | null;
+    latLngCache: Map<string, google.maps.LatLng>;
+  }>({
+    bounds: null,
+    latLngCache: new Map()
+  });
+
+  // Helper function to get or create LatLng
+  const getLatLng = React.useCallback((lat: number, lng: number): google.maps.LatLng => {
+    const key = `${lat},${lng}`;
+    if (!mapRefs.current.latLngCache.has(key)) {
+      mapRefs.current.latLngCache.set(key, new google.maps.LatLng(lat, lng));
+    }
+    return mapRefs.current.latLngCache.get(key)!;
+  }, []);
+
+  // Convert route data to Google Maps objects
+  const convertRoute = React.useCallback((route: any): google.maps.DirectionsRoute => {
+    const bounds = new google.maps.LatLngBounds(
+      getLatLng(route.bounds.southwest.lat, route.bounds.southwest.lng),
+      getLatLng(route.bounds.northeast.lat, route.bounds.northeast.lng)
+    );
+    mapRefs.current.bounds = bounds;
+
+    return {
+      bounds,
+      legs: route.legs.map((leg: any) => ({
+        distance: leg.distance,
+        duration: leg.duration,
+        end_address: leg.end_address || '',
+        start_address: leg.start_address || '',
+        end_location: getLatLng(leg.end_location.lat, leg.end_location.lng),
+        start_location: getLatLng(leg.start_location.lat, leg.start_location.lng),
+        steps: leg.steps.map((step: any) => ({
+          distance: step.distance,
+          duration: step.duration,
+          end_location: getLatLng(step.end_location.lat, step.end_location.lng),
+          start_location: getLatLng(step.start_location.lat, step.start_location.lng),
+          instructions: step.instructions || '',
+          path: (step.path || []).map((point: any) => 
+            getLatLng(point.lat, point.lng)
+          ),
+          travel_mode: step.travel_mode || 'WALKING'
+        })),
+        via_waypoints: (leg.via_waypoints || []).map((point: any) => 
+          getLatLng(point.lat, point.lng)
+        )
+      })),
+      overview_path: (route.overview_path || []).map((point: any) => 
+        getLatLng(point.lat, point.lng)
+      ),
+      overview_polyline: {
+        points: typeof route.overview_polyline === 'string'
+          ? route.overview_polyline
+          : route.overview_polyline?.points || ''
+      },
+      warnings: route.warnings || [],
+      waypoint_order: route.waypoint_order || [],
+      summary: route.summary || ''
+    };
+  }, [getLatLng]);
+
   // Convert to simplified format for storage
   const simplifiedState = React.useMemo(() => {
     if (!tour?.response || !isGoogleLoaded) return null;
@@ -274,7 +338,7 @@ export default function YourTour() {
   }, [tour, duration, isGoogleLoaded]);
 
   // Convert back to Google Maps objects for rendering
-  const directionsResult = React.useMemo((): google.maps.DirectionsResult | null => {
+  const directionsResult = React.useMemo(() => {
     if (!simplifiedState?.route || !isGoogleLoaded) return null;
 
     try {
@@ -284,78 +348,63 @@ export default function YourTour() {
         return null;
       }
 
-      // Create bounds once and reuse
-      const bounds = new google.maps.LatLngBounds(
-        new google.maps.LatLng(firstRoute.bounds.southwest.lat, firstRoute.bounds.southwest.lng),
-        new google.maps.LatLng(firstRoute.bounds.northeast.lat, firstRoute.bounds.northeast.lng)
-      );
-
-      // Create a stable reference for the route
-      const convertedRoute: google.maps.DirectionsRoute = {
-        bounds,
-        legs: firstRoute.legs.map(leg => {
-          const startLocation = new google.maps.LatLng(leg.start_location.lat, leg.start_location.lng);
-          const endLocation = new google.maps.LatLng(leg.end_location.lat, leg.end_location.lng);
-
-          return {
-            distance: leg.distance,
-            duration: leg.duration,
-            end_address: leg.end_address,
-            end_location: endLocation,
-            start_address: leg.start_address,
-            start_location: startLocation,
-            steps: leg.steps.map(step => {
-              const stepStart = new google.maps.LatLng(step.start_location.lat, step.start_location.lng);
-              const stepEnd = new google.maps.LatLng(step.end_location.lat, step.end_location.lng);
-              const path = (step.path || []).map(point => 
-                new google.maps.LatLng(point.lat, point.lng)
-              );
-
-              return {
-                distance: step.distance,
-                duration: step.duration,
-                end_location: stepEnd,
-                instructions: step.instructions,
-                path,
-                start_location: stepStart,
-                travel_mode: step.travel_mode
-              };
-            }),
-            via_waypoints: (leg.via_waypoints || []).map(point => 
-              new google.maps.LatLng(point.lat, point.lng)
-            )
-          };
-        }),
-        overview_path: (firstRoute.overview_path || []).map(point => 
-          new google.maps.LatLng(point.lat, point.lng)
-        ),
-        overview_polyline: {
-          points: typeof firstRoute.overview_polyline === 'string' 
-            ? firstRoute.overview_polyline 
-            : firstRoute.overview_polyline?.points || ''
-        },
-        warnings: [...(firstRoute.warnings || [])],
-        waypoint_order: [...(firstRoute.waypoint_order || [])],
-        summary: firstRoute.summary || ''
-      };
-
-      // Create a stable reference for the final result
-      const result: google.maps.DirectionsResult = {
-        routes: [convertedRoute],
+      return {
+        routes: [convertRoute(firstRoute)],
         geocoded_waypoints: simplifiedState.route.geocoded_waypoints?.map(waypoint => ({
           place_id: waypoint.place_id || '',
-          types: [...(waypoint.types || [])],
+          types: waypoint.types || [],
           partial_match: waypoint.partial_match || false
         })) || [],
-        request: null // Exclude request to avoid serialization issues
+        request: null
       };
-
-      return result;
     } catch (error) {
       console.error('Error converting directions result:', error);
       return null;
     }
-  }, [simplifiedState?.route, isGoogleLoaded]);
+  }, [simplifiedState?.route, isGoogleLoaded, convertRoute]);
+
+  // Memoized renderer options
+  const directionsRendererOptions = React.useMemo(() => ({
+    suppressMarkers: false,
+    markerOptions: {
+      label: {
+        text: '',
+        color: 'white',
+        fontWeight: 'bold'
+      }
+    }
+  }), []);
+
+  // Memoized storage update handler
+  const handleStorageUpdate = React.useCallback(() => {
+    if (!tour?.response || !isGoogleLoaded) return;
+    
+    try {
+      const state = {
+        route: simplifyDirectionsResult(tour.response),
+        artLocations: tour.locations.map(loc => ({
+          id: loc.id,
+          location: {
+            lat: loc.coordinates.lat,
+            lng: loc.coordinates.lng
+          },
+          title: loc.title,
+          description: loc.description
+        })),
+        duration,
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem('currentTour', JSON.stringify(state));
+    } catch (error) {
+      console.error('Error saving tour state:', error);
+    }
+  }, [tour, duration, isGoogleLoaded]);
+
+  // Storage effect
+  React.useEffect(() => {
+    handleStorageUpdate();
+  }, [handleStorageUpdate]);
 
   // Save simplified state
   React.useEffect(() => {
@@ -442,11 +491,18 @@ export default function YourTour() {
     setUserLocation(new google.maps.LatLng(latitude, longitude));
   }, [isGoogleLoaded]);
 
-  // Watch user location
+  // Location watching effect with proper cleanup
   React.useEffect(() => {
     if (!isGoogleLoaded || !tour) return;
 
     let watchId: number;
+    const cleanup = () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        setLocationError(null);
+      }
+    };
+
     if ('geolocation' in navigator) {
       watchId = navigator.geolocation.watchPosition(
         handleLocationUpdate,
@@ -464,12 +520,197 @@ export default function YourTour() {
       setLocationError({ message: 'Geolocation is not supported by your browser.' });
     }
 
-    return () => {
-      if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-    };
+    return cleanup;
   }, [isGoogleLoaded, tour, handleLocationUpdate]);
+
+  // Memoized step component to prevent infinite loops
+  const StepWithNearbyArt = React.memo(({ 
+    step, 
+    locations, 
+    isGoogleLoaded, 
+    index, 
+    isCurrentStep,
+    onArtCardClick,
+    maximizedCard
+  }: {
+    step: google.maps.DirectionsStep;
+    locations: ArtLocation[];
+    isGoogleLoaded: boolean;
+    index: number;
+    isCurrentStep: boolean;
+    onArtCardClick: (index: number) => void;
+    maximizedCard: number | null;
+  }) => {
+    const nearbyArt = useNearbyArt(step, locations, isGoogleLoaded);
+    const isArtStop = isGoogleLoaded && locations.some(loc => {
+      const stepPath = step.path?.[0];
+      if (!stepPath) return false;
+
+      const stepLatLng = toLatLngLiteral(stepPath);
+      const locationLatLng = {
+        lat: loc.coordinates.lat,
+        lng: loc.coordinates.lng
+      } as LatLngLiteral;
+
+      return isWithinDistance(stepLatLng, locationLatLng, 50);
+    });
+
+    return (
+      <React.Fragment>
+        {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
+        <div className={`flex items-start p-4 rounded-lg ${
+          isCurrentStep ? 'bg-blue-50 border-2 border-blue-500' : ''
+        }`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3 ${
+            isCurrentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+          }`}>
+            {index + 1}
+          </div>
+          <div className="flex-1">
+            <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
+            <p className="text-sm text-gray-600 mt-1">
+              {step.distance?.text} · {step.duration?.text}
+            </p>
+            {nearbyArt && (
+              <div className="mt-2">
+                <button
+                  onClick={() => onArtCardClick(nearbyArt.index)}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  Nearby: {nearbyArt.location.title}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </React.Fragment>
+    );
+  });
+
+  StepWithNearbyArt.displayName = 'StepWithNearbyArt';
+
+  // Memoized art card component
+  const ArtCard = React.memo(({ 
+    artLocation, 
+    isMaximized, 
+    onClose,
+    onARClick,
+    onArtCardClick,
+    index
+  }: {
+    artLocation: ArtLocation;
+    isMaximized: boolean;
+    onClose: () => void;
+    onARClick: (artwork: ArtLocation) => void;
+    onArtCardClick: (index: number) => void;
+    index: number;
+  }) => {
+    if (isMaximized) {
+      return (
+        <div className="bg-white rounded-lg shadow-lg p-4">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h3 className="font-bold text-xl">{artLocation.title}</h3>
+              <p className="text-gray-600">by {artLocation.artist}</p>
+            </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {artLocation.imageUrl && (
+            <img
+              src={artLocation.imageUrl}
+              alt={artLocation.title}
+              className="w-full h-64 object-cover rounded mb-4"
+            />
+          )}
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-4 mt-4">
+            {artLocation.arEnabled && artLocation.arContent && (
+              <button 
+                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center space-x-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onARClick(artLocation);
+                }}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>View in AR</span>
+              </button>
+            )}
+            {artLocation.shopUrl && (
+              <a
+                href={artLocation.shopUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center space-x-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                <span>Shop</span>
+              </a>
+            )}
+            <button 
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center space-x-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Add share logic here
+                if (navigator.share) {
+                  navigator.share({
+                    title: artLocation.title,
+                    text: `Check out this amazing artwork by ${artLocation.artist}!`,
+                    url: window.location.href
+                  }).catch(console.error);
+                }
+              }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+              </svg>
+              <span>Share</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onArtCardClick(index);
+        }}
+      >
+        {artLocation.imageUrl && (
+          <img
+            src={artLocation.imageUrl}
+            alt={artLocation.title}
+            className="w-24 h-24 object-cover rounded"
+          />
+        )}
+        <div>
+          <h3 className="font-bold text-lg">{artLocation.title}</h3>
+          <p className="text-gray-600">by {artLocation.artist}</p>
+          <p className="text-sm text-blue-500 mt-1">Click to view details</p>
+        </div>
+      </div>
+    );
+  });
+
+  ArtCard.displayName = 'ArtCard';
 
   if (!tour || !tour.response) {
     return (
@@ -632,14 +873,7 @@ export default function YourTour() {
                         origin: directionsResult.routes[0].legs[0].start_location,
                       }
                     },
-                    suppressMarkers: false,
-                    markerOptions: {
-                      label: {
-                        text: '',
-                        color: 'white',
-                        fontWeight: 'bold'
-                      }
-                    }
+                    ...directionsRendererOptions
                   }}
                 />
               )}
@@ -665,28 +899,15 @@ export default function YourTour() {
             {isArtStopsExpanded && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {tour.locations.map((location, index) => (
-                  <div
+                  <ArtCard
                     key={index}
-                    className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 cursor-pointer"
-                    onClick={() => handleArtCardClick(index)}
-                  >
-                    <div className="flex items-start">
-                      <div className="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{location.title}</h3>
-                        <p className="text-sm text-gray-600">by {location.artist}</p>
-                      </div>
-                    </div>
-                    {location.imageUrl && (
-                      <img
-                        src={location.imageUrl}
-                        alt={location.title}
-                        className="w-full h-32 object-cover rounded mt-2"
-                      />
-                    )}
-                  </div>
+                    artLocation={location}
+                    isMaximized={maximizedArtCard === index}
+                    onClose={() => setMaximizedArtCard(null)}
+                    onARClick={handleARClick}
+                    onArtCardClick={handleArtCardClick}
+                    index={index}
+                  />
                 ))}
               </div>
             )}
@@ -717,156 +938,18 @@ export default function YourTour() {
                 </button>
               </div>
               <div className="space-y-4">
-                {leg.steps.map((step, index) => {
-                  const isArtStop = isGoogleLoaded && tour.locations.some(loc => {
-                    const stepPath = step.path?.[0];
-                    if (!stepPath) return false;
-
-                    const stepLatLng = toLatLngLiteral(stepPath);
-                    const locationLatLng = {
-                      lat: loc.coordinates.lat,
-                      lng: loc.coordinates.lng
-                    } as LatLngLiteral;
-
-                    return isWithinDistance(stepLatLng, locationLatLng, 50);
-                  });
-                  
-                  const artLocation = isGoogleLoaded && tour.locations.find(loc => {
-                    const stepPath = step.path?.[0];
-                    if (!stepPath) return false;
-
-                    const stepLatLng = toLatLngLiteral(stepPath);
-                    const locationLatLng = {
-                      lat: loc.coordinates.lat,
-                      lng: loc.coordinates.lng
-                    } as LatLngLiteral;
-
-                    return isWithinDistance(stepLatLng, locationLatLng, 50);
-                  });
-
-                  const artLocationIndex = artLocation ? tour.locations.findIndex(loc => loc.title === artLocation.title) : -1;
-
-                  const nearbyArt = useNearbyArt(step, tour.locations, isGoogleLoaded);
-
-                  return (
-                    <React.Fragment key={index}>
-                      {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
-                      <div className={`flex items-start p-4 rounded-lg ${
-                        currentStepIndex === index ? 'bg-blue-50 border-2 border-blue-500' : ''
-                      }`}>
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3 ${
-                          currentStepIndex === index ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
-                          <p className="text-sm text-gray-600 mt-1">
-                            {step.distance?.text} · {step.duration?.text}
-                          </p>
-                        </div>
-                      </div>
-                      {isArtStop && artLocation && (
-                        <div className="ml-9 mt-2 mb-4">
-                          {maximizedArtCard === artLocationIndex ? (
-                            <div className="bg-white rounded-lg shadow-lg p-4">
-                              <div className="flex justify-between items-start mb-4">
-                                <div>
-                                  <h3 className="font-bold text-xl">{artLocation.title}</h3>
-                                  <p className="text-gray-600">by {artLocation.artist}</p>
-                                </div>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setMaximizedArtCard(null);
-                                  }}
-                                  className="text-gray-500 hover:text-gray-700"
-                                >
-                                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-                              {artLocation.imageUrl && (
-                                <img
-                                  src={artLocation.imageUrl}
-                                  alt={artLocation.title}
-                                  className="w-full h-64 object-cover rounded mb-4"
-                                />
-                              )}
-                              {/* Action buttons */}
-                              <div className="flex flex-wrap gap-4 mt-4">
-                                {artLocation.arEnabled && artLocation.arContent && (
-                                  <button 
-                                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center space-x-2"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleARClick(artLocation);
-                                    }}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                    <span>View in AR</span>
-                                  </button>
-                                )}
-                                {artLocation.shopUrl && (
-                                  <a
-                                    href={artLocation.shopUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center space-x-2"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                    </svg>
-                                    <span>Shop</span>
-                                  </a>
-                                )}
-                                <button 
-                                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center space-x-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Add share logic here
-                                    console.log('Sharing artwork');
-                                  }}
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                  </svg>
-                                  <span>Share</span>
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div 
-                              className="flex items-start space-x-4 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleArtCardClick(artLocationIndex);
-                              }}
-                            >
-                              {artLocation.imageUrl && (
-                                <img
-                                  src={artLocation.imageUrl}
-                                  alt={artLocation.title}
-                                  className="w-24 h-24 object-cover rounded"
-                                />
-                              )}
-                              <div>
-                                <h3 className="font-bold text-lg">{artLocation.title}</h3>
-                                <p className="text-gray-600">by {artLocation.artist}</p>
-                                <p className="text-sm text-blue-500 mt-1">Click to view details</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
-                    </React.Fragment>
-                  );
-                })}
+                {leg.steps.map((step, index) => (
+                  <StepWithNearbyArt
+                    key={index}
+                    step={step}
+                    locations={tour.locations}
+                    isGoogleLoaded={isGoogleLoaded}
+                    index={index}
+                    isCurrentStep={currentStepIndex === index}
+                    onArtCardClick={handleArtCardClick}
+                    maximizedCard={maximizedArtCard}
+                  />
+                ))}
               </div>
             </div>
           </div>
