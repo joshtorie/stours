@@ -642,36 +642,44 @@ export default function YourTour() {
                     step={step}
                     index={index}
                     isCurrentStep={currentStepIndex === index}
-                    artLocation={tour.locations.find((location, locationIndex) => {
+                    artLocation={tour.locations.find((location) => {
                       const stepPath = step.path?.[0];
                       if (!stepPath) return false;
 
-                      const stepLatLng = new google.maps.LatLng(
-                        stepPath.lat(),
-                        stepPath.lng()
+                      // Convert to LatLng if needed
+                      const stepLatLng = stepPath instanceof google.maps.LatLng
+                        ? stepPath
+                        : new google.maps.LatLng(
+                            typeof stepPath.lat === 'function' ? stepPath.lat() : stepPath.lat,
+                            typeof stepPath.lng === 'function' ? stepPath.lng() : stepPath.lng
+                          );
+
+                      const locationLatLng = new google.maps.LatLng(
+                        location.coordinates.lat,
+                        location.coordinates.lng
                       );
-                      const locationLatLng = {
-                        lat: location.coordinates.lat,
-                        lng: location.coordinates.lng
-                      } as LatLngLiteral;
 
                       return google.maps.geometry.spherical.computeDistanceBetween(
                         stepLatLng,
                         locationLatLng
                       ) < 50;
                     })}
-                    artLocationIndex={tour.locations.findIndex((location, locationIndex) => {
+                    artLocationIndex={tour.locations.findIndex((location) => {
                       const stepPath = step.path?.[0];
                       if (!stepPath) return false;
 
-                      const stepLatLng = new google.maps.LatLng(
-                        stepPath.lat(),
-                        stepPath.lng()
+                      // Convert to LatLng if needed
+                      const stepLatLng = stepPath instanceof google.maps.LatLng
+                        ? stepPath
+                        : new google.maps.LatLng(
+                            typeof stepPath.lat === 'function' ? stepPath.lat() : stepPath.lat,
+                            typeof stepPath.lng === 'function' ? stepPath.lng() : stepPath.lng
+                          );
+
+                      const locationLatLng = new google.maps.LatLng(
+                        location.coordinates.lat,
+                        location.coordinates.lng
                       );
-                      const locationLatLng = {
-                        lat: location.coordinates.lat,
-                        lng: location.coordinates.lng
-                      } as LatLngLiteral;
 
                       return google.maps.geometry.spherical.computeDistanceBetween(
                         stepLatLng,
