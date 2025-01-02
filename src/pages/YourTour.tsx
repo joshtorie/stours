@@ -36,6 +36,13 @@ interface ArtworkDisplay {
   distance: number;
 }
 
+interface SimplifiedTourState {
+  route: any;
+  artLocations: any[];
+  duration: number;
+  timestamp: number;
+}
+
 // Custom hook for Google Maps loading state
 function useGoogleMaps() {
   const [isLoaded, setIsLoaded] = React.useState(false);
@@ -106,6 +113,123 @@ function useNearbyArt(step: google.maps.DirectionsStep | null, locations: ArtLoc
   }, [step, locations, isGoogleLoaded]);
 }
 
+// Simplify directions result for storage
+function simplifyDirectionsResult(directionsResult: SerializableDirectionsResult) {
+  return {
+    routes: directionsResult.routes.map(route => ({
+      bounds: {
+        southwest: {
+          lat: route.bounds.southwest.lat,
+          lng: route.bounds.southwest.lng
+        },
+        northeast: {
+          lat: route.bounds.northeast.lat,
+          lng: route.bounds.northeast.lng
+        }
+      },
+      legs: route.legs.map(leg => ({
+        steps: leg.steps.map(step => ({
+          path: step.path?.map(point => ({
+            lat: point.lat,
+            lng: point.lng
+          })),
+          start_location: {
+            lat: step.start_location.lat,
+            lng: step.start_location.lng
+          },
+          end_location: {
+            lat: step.end_location.lat,
+            lng: step.end_location.lng
+          }
+        })),
+        start_location: {
+          lat: leg.start_location.lat,
+          lng: leg.start_location.lng
+        },
+        end_location: {
+          lat: leg.end_location.lat,
+          lng: leg.end_location.lng
+        },
+        via_waypoints: leg.via_waypoints?.map(point => ({
+          lat: point.lat,
+          lng: point.lng
+        })) || []
+      })),
+      overview_path: route.overview_path?.map(point => ({
+        lat: point.lat,
+        lng: point.lng
+      })),
+      warnings: route.warnings || [],
+      waypoint_order: route.waypoint_order || [],
+      overview_polyline: typeof route.overview_polyline === 'string' 
+        ? route.overview_polyline 
+        : route.overview_polyline.points || '',
+      summary: route.summary || '',
+      copyrights: route.copyrights || ''
+    })),
+    request: directionsResult.request,
+    geocoded_waypoints: directionsResult.geocoded_waypoints || []
+  };
+}
+
+// Reconstruct directions result from simplified format
+function reconstructDirectionsResult(simplifiedRoute: any) {
+  return {
+    routes: simplifiedRoute.routes.map(route => ({
+      bounds: new google.maps.LatLngBounds(
+        new google.maps.LatLng(
+          route.bounds.southwest.lat,
+          route.bounds.southwest.lng
+        ),
+        new google.maps.LatLng(
+          route.bounds.northeast.lat,
+          route.bounds.northeast.lng
+        )
+      ),
+      legs: route.legs.map(leg => ({
+        ...leg,
+        steps: leg.steps.map(step => ({
+          ...step,
+          path: step.path?.map(point => 
+            new google.maps.LatLng(point.lat, point.lng)
+          ),
+          start_location: new google.maps.LatLng(
+            step.start_location.lat,
+            step.start_location.lng
+          ),
+          end_location: new google.maps.LatLng(
+            step.end_location.lat,
+            step.end_location.lng
+          )
+        })),
+        start_location: new google.maps.LatLng(
+          leg.start_location.lat,
+          leg.start_location.lng
+        ),
+        end_location: new google.maps.LatLng(
+          leg.end_location.lat,
+          leg.end_location.lng
+        ),
+        via_waypoints: leg.via_waypoints?.map(point => 
+          new google.maps.LatLng(point.lat, point.lng)
+        ) || []
+      })),
+      overview_path: route.overview_path?.map(point => 
+        new google.maps.LatLng(point.lat, point.lng)
+      ),
+      warnings: route.warnings || [],
+      waypoint_order: route.waypoint_order || [],
+      overview_polyline: typeof route.overview_polyline === 'string' 
+        ? route.overview_polyline 
+        : route.overview_polyline.points || '',
+      summary: route.summary || '',
+      copyrights: route.copyrights || ''
+    })),
+    request: simplifiedRoute.request,
+    geocoded_waypoints: simplifiedRoute.geocoded_waypoints || []
+  };
+}
+
 export default function YourTour() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -124,27 +248,114 @@ export default function YourTour() {
   const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
   const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
 
+  // Convert to simplified format for storage
+  const simplifiedState = React.useMemo(() => {
+    if (!tour?.response || !isGoogleLoaded) return null;
+    
+    try {
+      return {
+        route: simplifyDirectionsResult(tour.response),
+        artLocations: tour.locations.map(loc => ({
+          id: loc.id,
+          location: {
+            lat: loc.coordinates.lat,
+            lng: loc.coordinates.lng
+          },
+          title: loc.title,
+          description: loc.description
+        })),
+        duration,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      console.error('Error simplifying tour state:', error);
+      return null;
+    }
+  }, [tour, duration, isGoogleLoaded]);
+
+  // Convert back to Google Maps objects for rendering
+  const directionsResult = React.useMemo(() => {
+    if (!simplifiedState?.route || !isGoogleLoaded) return null;
+    
+    try {
+      return reconstructDirectionsResult(simplifiedState.route);
+    } catch (error) {
+      console.error('Error reconstructing directions:', error);
+      return null;
+    }
+  }, [simplifiedState, isGoogleLoaded]);
+
+  // Save simplified state
+  React.useEffect(() => {
+    if (simplifiedState) {
+      localStorage.setItem('currentTour', JSON.stringify(simplifiedState));
+    }
+  }, [simplifiedState]);
+
+  // Load from storage if needed
+  React.useEffect(() => {
+    if (!location.state?.selectedRoute) {
+      const stored = localStorage.getItem('currentTour');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as SimplifiedTourState;
+          if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+            setDuration(parsed.duration);
+            // Reconstruct tour object
+            setTour({
+              name: 'Restored Tour',
+              description: 'Tour restored from storage',
+              locations: parsed.artLocations.map(art => ({
+                id: art.id,
+                title: art.title,
+                description: art.description || '',
+                coordinates: art.location
+              })),
+              response: reconstructDirectionsResult(parsed.route)
+            });
+          } else {
+            localStorage.removeItem('currentTour');
+            navigate('/');
+          }
+        } catch (error) {
+          console.error('Error loading stored tour:', error);
+          navigate('/');
+        }
+      } else {
+        navigate('/');
+      }
+    }
+  }, [location.state, navigate, isGoogleLoaded]);
+
   // Load tour data from state or storage
   React.useEffect(() => {
     if (location.state?.selectedRoute) {
-      setTour(location.state.selectedRoute);
-      setDuration(location.state.duration || 0);
+      const { selectedRoute, duration: tourDuration } = location.state;
+      setTour(selectedRoute);
+      setDuration(tourDuration || 0);
       // Save to storage
       saveTourState({
-        selectedRoute: location.state.selectedRoute,
-        duration: location.state.duration || 0
+        selectedRoute,
+        duration: tourDuration || 0
       });
     } else {
       // Try to load from storage
       const stored = loadTourState();
       if (stored) {
-        setTour(stored.selectedRoute);
-        setDuration(stored.duration);
+        const { selectedRoute, duration: storedDuration } = stored;
+        if (selectedRoute && selectedRoute.response) {
+          setTour(selectedRoute as TourVariation & { response: SerializableDirectionsResult });
+          setDuration(storedDuration);
+        } else {
+          setError({ message: 'Invalid tour data in storage.' });
+          navigate('/');
+        }
       } else {
         setError({ message: 'No tour data found. Please select a tour first.' });
+        navigate('/');
       }
     }
-  }, [location.state]);
+  }, [location.state, navigate]);
 
   // Handle Google Maps load
   const handleGoogleMapsLoad = React.useCallback(() => {
@@ -187,64 +398,6 @@ export default function YourTour() {
       }
     };
   }, [isGoogleLoaded, tour, handleLocationUpdate]);
-
-  // Convert serialized response back to DirectionsResult
-  const directionsResult = React.useMemo((): DirectionsResult | null => {
-    if (!tour?.response || !isGoogleLoaded) return null;
-
-    // Validate the serialized response
-    if (!isSerializableDirectionsResult(tour.response)) {
-      console.error('Invalid serialized directions result');
-      return null;
-    }
-
-    // Deep validation of route data
-    const validationResult = validateDirectionsResult(tour.response);
-    if (!validationResult.isValid) {
-      logValidationErrors(validationResult.errors);
-      return null;
-    }
-
-    try {
-      return {
-        routes: tour.response.routes.map(route => ({
-          ...route,
-          bounds: new google.maps.LatLngBounds(
-            new google.maps.LatLng(route.bounds.southwest.lat, route.bounds.southwest.lng),
-            new google.maps.LatLng(route.bounds.northeast.lat, route.bounds.northeast.lng)
-          ),
-          legs: route.legs.map(leg => ({
-            ...leg,
-            steps: leg.steps.map(step => ({
-              ...step,
-              path: step.path?.map(point => new google.maps.LatLng(point.lat, point.lng)),
-              start_location: new google.maps.LatLng(step.start_location.lat, step.start_location.lng),
-              end_location: new google.maps.LatLng(step.end_location.lat, step.end_location.lng)
-            })),
-            start_location: new google.maps.LatLng(leg.start_location.lat, leg.start_location.lng),
-            end_location: new google.maps.LatLng(leg.end_location.lat, leg.end_location.lng),
-            via_waypoints: leg.via_waypoints?.map(point => 
-              new google.maps.LatLng(point.lat, point.lng)
-            ) || []
-          })),
-          overview_path: route.overview_path?.map(point => 
-            new google.maps.LatLng(point.lat, point.lng)
-          ),
-          warnings: route.warnings || [],
-          waypoint_order: route.waypoint_order || [],
-          overview_polyline: typeof route.overview_polyline === 'string' 
-            ? route.overview_polyline 
-            : route.overview_polyline.points,
-          summary: route.summary || ''
-        })) as google.maps.DirectionsRoute[],
-        request: tour.response.request || null,
-        geocoded_waypoints: tour.response.geocoded_waypoints || []
-      };
-    } catch (error) {
-      console.error('Error converting directions result:', error);
-      return null;
-    }
-  }, [tour, isGoogleLoaded]);
 
   if (!tour || !tour.response) {
     return (

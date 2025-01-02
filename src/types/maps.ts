@@ -128,3 +128,82 @@ export function isSerializableDirectionsResult(obj: any): obj is SerializableDir
     )
   );
 }
+
+// Simplified route types that only store essential data
+export interface SimplifiedLatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface SimplifiedRoute {
+  waypoints: SimplifiedLatLng[];
+  duration: number;
+  distance: number;
+  polyline: string;
+  steps: {
+    location: SimplifiedLatLng;
+    instruction: string;
+    distance: number;
+    duration: number;
+  }[];
+}
+
+export interface SimplifiedTourState {
+  route: SimplifiedRoute;
+  artLocations: {
+    id: string;
+    location: SimplifiedLatLng;
+    title: string;
+    description?: string;
+  }[];
+  duration: number;
+  timestamp: number;
+}
+
+// Conversion utilities
+export function simplifyDirectionsResult(result: google.maps.DirectionsResult): SimplifiedRoute {
+  const route = result.routes[0];
+  const leg = route.legs[0];
+  
+  return {
+    waypoints: leg.via_waypoints?.map(point => ({
+      lat: point.lat(),
+      lng: point.lng()
+    })) || [],
+    duration: leg.duration?.value || 0,
+    distance: leg.distance?.value || 0,
+    polyline: route.overview_polyline,
+    steps: leg.steps.map(step => ({
+      location: {
+        lat: step.start_location.lat(),
+        lng: step.start_location.lng()
+      },
+      instruction: step.instructions,
+      distance: step.distance?.value || 0,
+      duration: step.duration?.value || 0
+    }))
+  };
+}
+
+export function reconstructDirectionsResult(simplified: SimplifiedRoute): google.maps.DirectionsResult {
+  return {
+    routes: [{
+      bounds: new google.maps.LatLngBounds(),
+      legs: [{
+        steps: simplified.steps.map(step => ({
+          distance: { value: step.distance, text: `${step.distance}m` },
+          duration: { value: step.duration, text: `${step.duration}s` },
+          start_location: new google.maps.LatLng(step.location.lat, step.location.lng),
+          end_location: new google.maps.LatLng(step.location.lat, step.location.lng),
+          instructions: step.instruction
+        })),
+        distance: { value: simplified.distance, text: `${simplified.distance}m` },
+        duration: { value: simplified.duration, text: `${simplified.duration}s` },
+        start_location: new google.maps.LatLng(simplified.steps[0].location.lat, simplified.steps[0].location.lng),
+        end_location: new google.maps.LatLng(simplified.steps[simplified.steps.length - 1].location.lat, simplified.steps[simplified.steps.length - 1].location.lng)
+      }],
+      overview_polyline: simplified.polyline
+    }],
+    geocoded_waypoints: []
+  } as google.maps.DirectionsResult;
+}
