@@ -145,82 +145,103 @@ export default function TourOptions() {
           routes: response.routes.map(route => ({
             bounds: {
               northeast: {
-                lat: typeof route.bounds.getNorthEast().lat === 'function' 
+                lat: Number(typeof route.bounds.getNorthEast().lat === 'function' 
                   ? route.bounds.getNorthEast().lat() 
-                  : route.bounds.getNorthEast().lat,
-                lng: typeof route.bounds.getNorthEast().lng === 'function'
+                  : route.bounds.getNorthEast().lat),
+                lng: Number(typeof route.bounds.getNorthEast().lng === 'function'
                   ? route.bounds.getNorthEast().lng()
-                  : route.bounds.getNorthEast().lng
+                  : route.bounds.getNorthEast().lng)
               },
               southwest: {
-                lat: typeof route.bounds.getSouthWest().lat === 'function'
+                lat: Number(typeof route.bounds.getSouthWest().lat === 'function'
                   ? route.bounds.getSouthWest().lat()
-                  : route.bounds.getSouthWest().lat,
-                lng: typeof route.bounds.getSouthWest().lng === 'function'
+                  : route.bounds.getSouthWest().lat),
+                lng: Number(typeof route.bounds.getSouthWest().lng === 'function'
                   ? route.bounds.getSouthWest().lng()
-                  : route.bounds.getSouthWest().lng
+                  : route.bounds.getSouthWest().lng)
               }
             },
             legs: route.legs.map(leg => ({
-              distance: leg.distance,
-              duration: leg.duration,
-              end_address: leg.end_address,
-              start_address: leg.start_address,
+              distance: {
+                text: leg.distance?.text || '',
+                value: leg.distance?.value || 0
+              },
+              duration: {
+                text: leg.duration?.text || '',
+                value: leg.duration?.value || 0
+              },
+              end_address: leg.end_address || '',
+              start_address: leg.start_address || '',
               end_location: {
-                lat: typeof leg.end_location.lat === 'function' ? leg.end_location.lat() : leg.end_location.lat,
-                lng: typeof leg.end_location.lng === 'function' ? leg.end_location.lng() : leg.end_location.lng
+                lat: Number(typeof leg.end_location.lat === 'function' ? leg.end_location.lat() : leg.end_location.lat),
+                lng: Number(typeof leg.end_location.lng === 'function' ? leg.end_location.lng() : leg.end_location.lng)
               },
               start_location: {
-                lat: typeof leg.start_location.lat === 'function' ? leg.start_location.lat() : leg.start_location.lat,
-                lng: typeof leg.start_location.lng === 'function' ? leg.start_location.lng() : leg.start_location.lng
+                lat: Number(typeof leg.start_location.lat === 'function' ? leg.start_location.lat() : leg.start_location.lat),
+                lng: Number(typeof leg.start_location.lng === 'function' ? leg.start_location.lng() : leg.start_location.lng)
               },
               steps: leg.steps.map(step => ({
-                distance: step.distance,
-                duration: step.duration,
-                instructions: step.instructions,
-                path: step.path?.map(point => ({
-                  lat: typeof point.lat === 'function' ? point.lat() : point.lat,
-                  lng: typeof point.lng === 'function' ? point.lng() : point.lng
+                distance: {
+                  text: step.distance?.text || '',
+                  value: step.distance?.value || 0
+                },
+                duration: {
+                  text: step.duration?.text || '',
+                  value: step.duration?.value || 0
+                },
+                instructions: step.instructions || '',
+                path: (step.path || []).map(point => ({
+                  lat: Number(typeof point.lat === 'function' ? point.lat() : point.lat),
+                  lng: Number(typeof point.lng === 'function' ? point.lng() : point.lng)
                 })),
                 start_location: {
-                  lat: typeof step.start_location.lat === 'function' ? step.start_location.lat() : step.start_location.lat,
-                  lng: typeof step.start_location.lng === 'function' ? step.start_location.lng() : step.start_location.lng
+                  lat: Number(typeof step.start_location.lat === 'function' ? step.start_location.lat() : step.start_location.lat),
+                  lng: Number(typeof step.start_location.lng === 'function' ? step.start_location.lng() : step.start_location.lng)
                 },
                 end_location: {
-                  lat: typeof step.end_location.lat === 'function' ? step.end_location.lat() : step.end_location.lat,
-                  lng: typeof step.end_location.lng === 'function' ? step.end_location.lng() : step.end_location.lng
+                  lat: Number(typeof step.end_location.lat === 'function' ? step.end_location.lat() : step.end_location.lat),
+                  lng: Number(typeof step.end_location.lng === 'function' ? step.end_location.lng() : step.end_location.lng)
                 },
-                travel_mode: step.travel_mode
+                travel_mode: step.travel_mode || 'WALKING'
               })),
-              via_waypoints: leg.via_waypoints?.map(point => ({
-                lat: typeof point.lat === 'function' ? point.lat() : point.lat,
-                lng: typeof point.lng === 'function' ? point.lng() : point.lng
+              via_waypoints: (leg.via_waypoints || []).map(point => ({
+                lat: Number(typeof point.lat === 'function' ? point.lat() : point.lat),
+                lng: Number(typeof point.lng === 'function' ? point.lng() : point.lng)
               }))
             })),
-            overview_path: route.overview_path?.map(point => ({
-              lat: typeof point.lat === 'function' ? point.lat() : point.lat,
-              lng: typeof point.lng === 'function' ? point.lng() : point.lng
+            overview_path: (route.overview_path || []).map(point => ({
+              lat: Number(typeof point.lat === 'function' ? point.lat() : point.lat),
+              lng: Number(typeof point.lng === 'function' ? point.lng() : point.lng)
             })),
-            overview_polyline: typeof route.overview_polyline === 'string' 
-              ? route.overview_polyline 
-              : route.overview_polyline?.points || '',
-            warnings: route.warnings || [],
-            waypoint_order: route.waypoint_order || [],
+            overview_polyline: {
+              points: typeof route.overview_polyline === 'string' 
+                ? route.overview_polyline 
+                : route.overview_polyline?.points || ''
+            },
+            warnings: [...(route.warnings || [])],
+            waypoint_order: [...(route.waypoint_order || [])],
             summary: route.summary || ''
           })),
-          request: response.request,
-          geocoded_waypoints: response.geocoded_waypoints || []
+          request: null, // Exclude request object as it may contain functions
+          geocoded_waypoints: (response.geocoded_waypoints || []).map(waypoint => ({
+            place_id: waypoint.place_id || '',
+            types: [...(waypoint.types || [])],
+            partial_match: waypoint.partial_match || false
+          }))
         }
       };
 
+      // Remove any functions or non-serializable data
+      const cleanTour = JSON.parse(JSON.stringify(serializableTour));
+
       // Validate before proceeding
-      if (!isSerializableDirectionsResult(serializableTour.response)) {
+      if (!isSerializableDirectionsResult(cleanTour.response)) {
         throw new Error('Failed to create serializable directions result');
       }
 
       navigate('/your-tour', {
         state: {
-          selectedRoute: serializableTour,
+          selectedRoute: cleanTour,
           duration
         }
       });
