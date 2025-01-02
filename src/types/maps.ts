@@ -212,8 +212,13 @@ export function reconstructDirectionsResult(simplified: SimplifiedRoute): google
  * Convert functions for Google Maps objects
  */
 
-export function toGoogleMapsLatLng(coords: SerializableLatLng): google.maps.LatLng {
-  return new google.maps.LatLng(coords.lat, coords.lng);
+export function toGoogleMapsLatLng(coords: SerializableLatLng | google.maps.LatLng | google.maps.LatLngLiteral): google.maps.LatLng {
+  if (coords instanceof google.maps.LatLng) {
+    return coords;
+  }
+  const lat = typeof coords.lat === 'function' ? coords.lat() : coords.lat;
+  const lng = typeof coords.lng === 'function' ? coords.lng() : coords.lng;
+  return new google.maps.LatLng(lat, lng);
 }
 
 export function toGoogleMapsBounds(bounds: SerializableBounds): google.maps.LatLngBounds {
@@ -248,17 +253,22 @@ export function toGoogleMapsRoute(route: SerializableRoute): google.maps.Directi
     overview_polyline: typeof route.overview_polyline === 'string' 
       ? { points: route.overview_polyline }
       : route.overview_polyline,
-    warnings: route.warnings,
-    waypoint_order: route.waypoint_order,
-    summary: route.summary,
-    copyrights: route.copyrights
-  };
+    warnings: route.warnings || [],
+    waypoint_order: route.waypoint_order || [],
+    summary: route.summary || '',
+    copyrights: route.copyrights || ''
+  } as google.maps.DirectionsRoute;
 }
 
 export function toGoogleMapsDirectionsResult(result: SerializableDirectionsResult): google.maps.DirectionsResult {
-  return {
-    routes: result.routes.map(toGoogleMapsRoute),
-    geocoded_waypoints: result.geocoded_waypoints,
-    request: result.request
-  } as google.maps.DirectionsResult;
+  try {
+    return {
+      routes: result.routes.map(toGoogleMapsRoute),
+      geocoded_waypoints: result.geocoded_waypoints || [],
+      request: result.request
+    } as google.maps.DirectionsResult;
+  } catch (error) {
+    console.error('Error converting directions result:', error);
+    throw new Error('Failed to convert directions result');
+  }
 }

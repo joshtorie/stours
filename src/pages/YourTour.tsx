@@ -3,20 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { GoogleMap, DirectionsRenderer, InfoWindow, MarkerF } from '@react-google-maps/api';
 import { DEFAULT_MAP_OPTIONS } from '../config/maps';
 import GoogleMapsWrapper from '../components/maps/GoogleMapsWrapper';
-import ARViewer from '../components/ARViewer';
-import type { TourVariation, Location as ArtLocation } from '../types/tour';
-import { 
-  toLatLngLiteral, 
-  createLatLng, 
-  safePathToLatLng, 
-  isWithinDistance,
-  createLatLngBounds,
-  getBoundsPoints
-} from '../utils/mapUtils';
+import type { TourVariation } from '../types/tour';
 import type { SerializableDirectionsResult } from '../types/maps';
-import { isSerializableDirectionsResult } from '../types/maps';
-import { validateDirectionsResult, logValidationErrors } from '../utils/routeValidation';
-import { saveTourState, loadTourState } from '../utils/storage';
+import { toGoogleMapsDirectionsResult } from '../types/maps';
+import type { ArtLocation } from '../types/art';
 
 // Google Maps types
 type LatLngLiteral = google.maps.LatLngLiteral;
@@ -164,7 +154,7 @@ export default function YourTour() {
     
     try {
       const state = {
-        route: simplifyDirectionsResult(tour.response),
+        route: toGoogleMapsDirectionsResult(tour.response),
         artLocations: tour.locations.map(loc => ({
           id: loc.id,
           location: {
@@ -194,7 +184,10 @@ export default function YourTour() {
 
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const newLocation = createLatLng(position.coords.latitude, position.coords.longitude);
+          const newLocation = new google.maps.LatLng(
+            position.coords.latitude,
+            position.coords.longitude
+          );
           setLocation(newLocation);
           setError(null);
         },
@@ -219,7 +212,10 @@ export default function YourTour() {
     return React.useMemo(() => {
       if (!step?.path?.[0] || !isGoogleLoaded || !locations.length) return null;
 
-      const stepLocation = safePathToLatLng(step.path[0]);
+      const stepLocation = new google.maps.LatLng(
+        step.path[0].lat(),
+        step.path[0].lng()
+      );
       let closestArt: ArtworkDisplay | null = null;
       let minDistance = Infinity;
 
@@ -650,25 +646,37 @@ export default function YourTour() {
                       const stepPath = step.path?.[0];
                       if (!stepPath) return false;
 
-                      const stepLatLng = toLatLngLiteral(stepPath);
+                      const stepLatLng = new google.maps.LatLng(
+                        stepPath.lat(),
+                        stepPath.lng()
+                      );
                       const locationLatLng = {
                         lat: location.coordinates.lat,
                         lng: location.coordinates.lng
                       } as LatLngLiteral;
 
-                      return isWithinDistance(stepLatLng, locationLatLng, 50);
+                      return google.maps.geometry.spherical.computeDistanceBetween(
+                        stepLatLng,
+                        locationLatLng
+                      ) < 50;
                     })}
                     artLocationIndex={tour.locations.findIndex((location, locationIndex) => {
                       const stepPath = step.path?.[0];
                       if (!stepPath) return false;
 
-                      const stepLatLng = toLatLngLiteral(stepPath);
+                      const stepLatLng = new google.maps.LatLng(
+                        stepPath.lat(),
+                        stepPath.lng()
+                      );
                       const locationLatLng = {
                         lat: location.coordinates.lat,
                         lng: location.coordinates.lng
                       } as LatLngLiteral;
 
-                      return isWithinDistance(stepLatLng, locationLatLng, 50);
+                      return google.maps.geometry.spherical.computeDistanceBetween(
+                        stepLatLng,
+                        locationLatLng
+                      ) < 50;
                     })}
                     maximizedArtCard={maximizedArtCard}
                     onArtCardClick={handleArtCardClick}
@@ -867,67 +875,4 @@ function Step({
       {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
     </React.Fragment>
   );
-}
-
-function toGoogleMapsDirectionsResult(directionsResult: SerializableDirectionsResult): google.maps.DirectionsResult {
-  return {
-    routes: directionsResult.routes.map(route => ({
-      bounds: new google.maps.LatLngBounds(
-        new google.maps.LatLng(
-          route.bounds.southwest.lat,
-          route.bounds.southwest.lng
-        ),
-        new google.maps.LatLng(
-          route.bounds.northeast.lat,
-          route.bounds.northeast.lng
-        )
-      ),
-      legs: route.legs.map(leg => ({
-        distance: leg.distance,
-        duration: leg.duration,
-        end_address: leg.end_address,
-        start_address: leg.start_address,
-        end_location: new google.maps.LatLng(
-          leg.end_location.lat,
-          leg.end_location.lng
-        ),
-        start_location: new google.maps.LatLng(
-          leg.start_location.lat,
-          leg.start_location.lng
-        ),
-        steps: leg.steps.map(step => ({
-          distance: step.distance,
-          duration: step.duration,
-          end_location: new google.maps.LatLng(
-            step.end_location.lat,
-            step.end_location.lng
-          ),
-          start_location: new google.maps.LatLng(
-            step.start_location.lat,
-            step.start_location.lng
-          ),
-          instructions: step.instructions,
-          path: step.path?.map(point => 
-            new google.maps.LatLng(point.lat, point.lng)
-          ),
-          travel_mode: step.travel_mode
-        })),
-        via_waypoints: leg.via_waypoints?.map(point => 
-          new google.maps.LatLng(point.lat, point.lng)
-        ) || []
-      })),
-      overview_path: route.overview_path?.map(point => 
-        new google.maps.LatLng(point.lat, point.lng)
-      ),
-      warnings: route.warnings || [],
-      waypoint_order: route.waypoint_order || [],
-      overview_polyline: typeof route.overview_polyline === 'string' 
-        ? route.overview_polyline 
-        : route.overview_polyline.points || '',
-      summary: route.summary || '',
-      copyrights: route.copyrights || ''
-    })),
-    request: directionsResult.request,
-    geocoded_waypoints: directionsResult.geocoded_waypoints || []
-  };
 }
