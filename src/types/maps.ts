@@ -50,7 +50,7 @@ export interface SerializableRoute {
   overview_path?: SerializableLatLng[];
   warnings: string[];
   waypoint_order: number[];
-  overview_polyline: { points: string };
+  overview_polyline: { points: string } | string;
   summary: string;
 }
 

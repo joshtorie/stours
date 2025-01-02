@@ -149,8 +149,13 @@ function validateRoute(route: SerializableRoute, path: string): ValidationError[
     });
   }
 
-  if (!route.overview_polyline || !route.overview_polyline.points) {
+  // Make overview_polyline validation more lenient
+  if (!route.overview_polyline) {
     errors.push({ field: 'overview_polyline', message: 'Overview polyline is missing', path });
+  } else if (typeof route.overview_polyline === 'string') {
+    // If it's a string, it's valid
+  } else if (typeof route.overview_polyline === 'object' && !route.overview_polyline.points) {
+    errors.push({ field: 'overview_polyline', message: 'Overview polyline points is missing', path });
   }
 
   if (!route.summary) {

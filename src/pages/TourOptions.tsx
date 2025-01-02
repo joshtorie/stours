@@ -104,73 +104,88 @@ export default function TourOptions() {
     }
 
     try {
+      const response = tourVariations[index].response;
+      if (!response.routes[0]) {
+        console.error('No route found in directions response');
+        return;
+      }
+
       // Create a serializable version of the tour
       const serializableTour = {
         ...tourVariations[index],
         estimatedTime: tourVariations[index].estimatedTime,
         distance: tourVariations[index].distance,
         response: {
-          routes: tourVariations[index].response.routes.map(route => ({
-            bounds: {
-              getNorthEast: () => ({
-                lat: () => route.bounds.getNorthEast().lat(),
-                lng: () => route.bounds.getNorthEast().lng()
-              }),
-              getSouthWest: () => ({
-                lat: () => route.bounds.getSouthWest().lat(),
-                lng: () => route.bounds.getSouthWest().lng()
-              })
-            } as SerializableBounds,
-            legs: route.legs.map(leg => ({
-              distance: { text: leg.distance?.text, value: leg.distance?.value },
-              duration: { text: leg.duration?.text, value: leg.duration?.value },
-              end_address: leg.end_address,
-              start_address: leg.start_address,
-              end_location: {
-                lat: () => leg.end_location.lat(),
-                lng: () => leg.end_location.lng()
-              } as SerializableLatLng,
-              start_location: {
-                lat: () => leg.start_location.lat(),
-                lng: () => leg.start_location.lng()
-              } as SerializableLatLng,
-              steps: leg.steps.map(step => ({
-                distance: { text: step.distance?.text, value: step.distance?.value },
-                duration: { text: step.duration?.text, value: step.duration?.value },
-                instructions: step.instructions,
-                path: step.path?.map(point => ({
+          routes: response.routes.map(route => {
+            // Ensure we have a valid overview_polyline
+            const polyline = route.overview_polyline?.points || 
+                           (typeof route.overview_polyline === 'string' ? route.overview_polyline : '');
+
+            return {
+              bounds: {
+                getNorthEast: () => ({
+                  lat: () => route.bounds.getNorthEast().lat(),
+                  lng: () => route.bounds.getNorthEast().lng()
+                }),
+                getSouthWest: () => ({
+                  lat: () => route.bounds.getSouthWest().lat(),
+                  lng: () => route.bounds.getSouthWest().lng()
+                })
+              } as SerializableBounds,
+              legs: route.legs.map(leg => ({
+                distance: { text: leg.distance?.text, value: leg.distance?.value },
+                duration: { text: leg.duration?.text, value: leg.duration?.value },
+                end_address: leg.end_address,
+                start_address: leg.start_address,
+                end_location: {
+                  lat: () => leg.end_location.lat(),
+                  lng: () => leg.end_location.lng()
+                } as SerializableLatLng,
+                start_location: {
+                  lat: () => leg.start_location.lat(),
+                  lng: () => leg.start_location.lng()
+                } as SerializableLatLng,
+                steps: leg.steps.map(step => ({
+                  distance: { text: step.distance?.text, value: step.distance?.value },
+                  duration: { text: step.duration?.text, value: step.duration?.value },
+                  instructions: step.instructions,
+                  path: step.path?.map(point => ({
+                    lat: () => point.lat(),
+                    lng: () => point.lng()
+                  } as SerializableLatLng)),
+                  start_location: {
+                    lat: () => step.start_location.lat(),
+                    lng: () => step.start_location.lng()
+                  } as SerializableLatLng,
+                  end_location: {
+                    lat: () => step.end_location.lat(),
+                    lng: () => step.end_location.lng()
+                  } as SerializableLatLng,
+                  travel_mode: step.travel_mode,
+                })),
+                via_waypoints: leg.via_waypoints?.map(point => ({
                   lat: () => point.lat(),
                   lng: () => point.lng()
-                } as SerializableLatLng)),
-                start_location: {
-                  lat: () => step.start_location.lat(),
-                  lng: () => step.start_location.lng()
-                } as SerializableLatLng,
-                end_location: {
-                  lat: () => step.end_location.lat(),
-                  lng: () => step.end_location.lng()
-                } as SerializableLatLng,
-                travel_mode: step.travel_mode,
+                } as SerializableLatLng))
               })),
-              via_waypoints: leg.via_waypoints?.map(point => ({
+              overview_path: route.overview_path?.map(point => ({
                 lat: () => point.lat(),
                 lng: () => point.lng()
-              } as SerializableLatLng))
-            })),
-            overview_path: route.overview_path?.map(point => ({
-              lat: () => point.lat(),
-              lng: () => point.lng()
-            } as SerializableLatLng)),
-            warnings: route.warnings || [],
-            waypoint_order: route.waypoint_order || [],
-            overview_polyline: { points: route.overview_polyline?.points || '' },
-            summary: route.summary || '',
-            copyrights: route.copyrights || ''
-          })),
-          request: tourVariations[index].response.request || null,
-          geocoded_waypoints: tourVariations[index].response.geocoded_waypoints || []
+              } as SerializableLatLng)),
+              warnings: route.warnings || [],
+              waypoint_order: route.waypoint_order || [],
+              overview_polyline: { points: polyline },
+              summary: route.summary || '',
+              copyrights: route.copyrights || ''
+            };
+          }),
+          request: response.request || null,
+          geocoded_waypoints: response.geocoded_waypoints || []
         } as SerializableDirectionsResult
       };
+
+      // Log the overview_polyline for debugging
+      console.debug('Overview polyline:', serializableTour.response.routes[0]?.overview_polyline);
 
       // Validate the serialized result
       const validationResult = validateDirectionsResult(serializableTour.response);
