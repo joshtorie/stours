@@ -713,16 +713,17 @@ export default function YourTour() {
               )}
 
               {/* Display the route */}
-              {convertRoute(tour.response.routes[0]) && (
+              {tour.response && (
                 <DirectionsRenderer
                   options={{
                     directions: {
-                      ...convertRoute(tour.response.routes[0]),
+                      routes: [convertRoute(tour.response.routes[0])],
                       request: {
                         travelMode: google.maps.TravelMode.WALKING,
                         destination: tour.response.routes[0].legs[0].end_location,
                         origin: tour.response.routes[0].legs[0].start_location,
-                      }
+                      },
+                      geocoded_waypoints: tour.response.geocoded_waypoints || []
                     },
                     ...directionsRendererOptions
                   }}
