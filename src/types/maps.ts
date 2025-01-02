@@ -3,13 +3,13 @@
  */
 
 export interface SerializableLatLng {
-  lat: () => number;
-  lng: () => number;
+  lat: number;
+  lng: number;
 }
 
 export interface SerializableBounds {
-  getNorthEast: () => SerializableLatLng;
-  getSouthWest: () => SerializableLatLng;
+  northeast: SerializableLatLng;
+  southwest: SerializableLatLng;
 }
 
 export interface SerializableDistance {
@@ -61,13 +61,33 @@ export interface SerializableDirectionsResult {
 }
 
 /**
+ * Convert a Google Maps LatLng to a serializable format
+ */
+export function toSerializableLatLng(latLng: google.maps.LatLng | google.maps.LatLngLiteral): SerializableLatLng {
+  return {
+    lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
+    lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng
+  };
+}
+
+/**
+ * Convert Google Maps Bounds to a serializable format
+ */
+export function toSerializableBounds(bounds: google.maps.LatLngBounds): SerializableBounds {
+  return {
+    northeast: toSerializableLatLng(bounds.getNorthEast()),
+    southwest: toSerializableLatLng(bounds.getSouthWest())
+  };
+}
+
+/**
  * Type guard to check if an object is a SerializableLatLng
  */
 export function isSerializableLatLng(obj: any): obj is SerializableLatLng {
   return (
     obj &&
-    typeof obj.lat === 'function' &&
-    typeof obj.lng === 'function'
+    typeof obj.lat === 'number' &&
+    typeof obj.lng === 'number'
   );
 }
 
@@ -77,10 +97,10 @@ export function isSerializableLatLng(obj: any): obj is SerializableLatLng {
 export function isSerializableBounds(obj: any): obj is SerializableBounds {
   return (
     obj &&
-    typeof obj.getNorthEast === 'function' &&
-    typeof obj.getSouthWest === 'function' &&
-    isSerializableLatLng(obj.getNorthEast()) &&
-    isSerializableLatLng(obj.getSouthWest())
+    obj.northeast &&
+    obj.southwest &&
+    isSerializableLatLng(obj.northeast) &&
+    isSerializableLatLng(obj.southwest)
   );
 }
 

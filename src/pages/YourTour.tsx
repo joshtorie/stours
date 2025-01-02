@@ -144,36 +144,32 @@ export default function YourTour() {
       return {
         routes: tour.response.routes.map(route => ({
           ...route,
-          bounds: createLatLngBounds({
-            southwest: { 
-              lat: route.bounds.getSouthWest().lat(), 
-              lng: route.bounds.getSouthWest().lng() 
-            },
-            northeast: { 
-              lat: route.bounds.getNorthEast().lat(), 
-              lng: route.bounds.getNorthEast().lng() 
-            }
-          }),
+          bounds: new google.maps.LatLngBounds(
+            new google.maps.LatLng(route.bounds.southwest.lat, route.bounds.southwest.lng),
+            new google.maps.LatLng(route.bounds.northeast.lat, route.bounds.northeast.lng)
+          ),
           legs: route.legs.map(leg => ({
             ...leg,
             steps: leg.steps.map(step => ({
               ...step,
-              path: step.path?.map(point => createLatLng(point.lat(), point.lng())),
-              start_location: createLatLng(step.start_location.lat(), step.start_location.lng()),
-              end_location: createLatLng(step.end_location.lat(), step.end_location.lng())
+              path: step.path?.map(point => new google.maps.LatLng(point.lat, point.lng)),
+              start_location: new google.maps.LatLng(step.start_location.lat, step.start_location.lng),
+              end_location: new google.maps.LatLng(step.end_location.lat, step.end_location.lng)
             })),
-            start_location: createLatLng(leg.start_location.lat(), leg.start_location.lng()),
-            end_location: createLatLng(leg.end_location.lat(), leg.end_location.lng()),
+            start_location: new google.maps.LatLng(leg.start_location.lat, leg.start_location.lng),
+            end_location: new google.maps.LatLng(leg.end_location.lat, leg.end_location.lng),
             via_waypoints: leg.via_waypoints?.map(point => 
-              createLatLng(point.lat(), point.lng())
+              new google.maps.LatLng(point.lat, point.lng)
             ) || []
           })),
           overview_path: route.overview_path?.map(point => 
-            createLatLng(point.lat(), point.lng())
+            new google.maps.LatLng(point.lat, point.lng)
           ),
           warnings: route.warnings || [],
           waypoint_order: route.waypoint_order || [],
-          overview_polyline: route.overview_polyline?.points || '',
+          overview_polyline: typeof route.overview_polyline === 'string' 
+            ? route.overview_polyline 
+            : route.overview_polyline.points,
           summary: route.summary || ''
         })) as google.maps.DirectionsRoute[],
         request: tour.response.request || null,

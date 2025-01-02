@@ -123,55 +123,55 @@ export default function TourOptions() {
 
             return {
               bounds: {
-                getNorthEast: () => ({
-                  lat: () => route.bounds.getNorthEast().lat(),
-                  lng: () => route.bounds.getNorthEast().lng()
-                }),
-                getSouthWest: () => ({
-                  lat: () => route.bounds.getSouthWest().lat(),
-                  lng: () => route.bounds.getSouthWest().lng()
-                })
-              } as SerializableBounds,
+                northeast: {
+                  lat: route.bounds.getNorthEast().lat(),
+                  lng: route.bounds.getNorthEast().lng()
+                },
+                southwest: {
+                  lat: route.bounds.getSouthWest().lat(),
+                  lng: route.bounds.getSouthWest().lng()
+                }
+              },
               legs: route.legs.map(leg => ({
                 distance: { text: leg.distance?.text, value: leg.distance?.value },
                 duration: { text: leg.duration?.text, value: leg.duration?.value },
                 end_address: leg.end_address,
                 start_address: leg.start_address,
                 end_location: {
-                  lat: () => leg.end_location.lat(),
-                  lng: () => leg.end_location.lng()
-                } as SerializableLatLng,
+                  lat: leg.end_location.lat(),
+                  lng: leg.end_location.lng()
+                },
                 start_location: {
-                  lat: () => leg.start_location.lat(),
-                  lng: () => leg.start_location.lng()
-                } as SerializableLatLng,
+                  lat: leg.start_location.lat(),
+                  lng: leg.start_location.lng()
+                },
                 steps: leg.steps.map(step => ({
                   distance: { text: step.distance?.text, value: step.distance?.value },
                   duration: { text: step.duration?.text, value: step.duration?.value },
                   instructions: step.instructions,
                   path: step.path?.map(point => ({
-                    lat: () => point.lat(),
-                    lng: () => point.lng()
-                  } as SerializableLatLng)),
+                    lat: point.lat(),
+                    lng: point.lng()
+                  })),
                   start_location: {
-                    lat: () => step.start_location.lat(),
-                    lng: () => step.start_location.lng()
-                  } as SerializableLatLng,
+                    lat: step.start_location.lat(),
+                    lng: step.start_location.lng()
+                  },
                   end_location: {
-                    lat: () => step.end_location.lat(),
-                    lng: () => step.end_location.lng()
-                  } as SerializableLatLng,
+                    lat: step.end_location.lat(),
+                    lng: step.end_location.lng()
+                  },
                   travel_mode: step.travel_mode,
                 })),
                 via_waypoints: leg.via_waypoints?.map(point => ({
-                  lat: () => point.lat(),
-                  lng: () => point.lng()
-                } as SerializableLatLng))
+                  lat: point.lat(),
+                  lng: point.lng()
+                }))
               })),
               overview_path: route.overview_path?.map(point => ({
-                lat: () => point.lat(),
-                lng: () => point.lng()
-              } as SerializableLatLng)),
+                lat: point.lat(),
+                lng: point.lng()
+              })),
               warnings: route.warnings || [],
               waypoint_order: route.waypoint_order || [],
               overview_polyline: { points: polyline },
@@ -222,15 +222,15 @@ export default function TourOptions() {
     }
 
     const waypoints = variation.locations.slice(1, -1).map(loc => ({
-      location: new window.google.maps.LatLng(loc.coordinates.lat, loc.coordinates.lng),
+      location: { lat: loc.coordinates.lat, lng: loc.coordinates.lng },
       stopover: true
     }));
 
     return (
       <DirectionsService
         options={{
-          destination: variation.locations[variation.locations.length - 1].coordinates,
-          origin: variation.locations[0].coordinates,
+          destination: { lat: variation.locations[variation.locations.length - 1].coordinates.lat, lng: variation.locations[variation.locations.length - 1].coordinates.lng },
+          origin: { lat: variation.locations[0].coordinates.lat, lng: variation.locations[0].coordinates.lng },
           waypoints,
           travelMode: window.google.maps.TravelMode.WALKING,
           optimizeWaypoints: true
@@ -303,7 +303,7 @@ export default function TourOptions() {
                     {!variation.response && variation.locations.map((loc, idx) => (
                       <MarkerF
                         key={idx}
-                        position={loc.coordinates}
+                        position={{ lat: loc.coordinates.lat, lng: loc.coordinates.lng }}
                         label={(idx + 1).toString()}
                       />
                     ))}
