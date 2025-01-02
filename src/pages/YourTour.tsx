@@ -312,59 +312,8 @@ export default function YourTour() {
     };
   }, [getLatLng]);
 
-  // Convert to simplified format for storage
-  const simplifiedState = React.useMemo(() => {
-    if (!tour?.response || !isGoogleLoaded) return null;
-    
-    try {
-      return {
-        route: simplifyDirectionsResult(tour.response),
-        artLocations: tour.locations.map(loc => ({
-          id: loc.id,
-          location: {
-            lat: loc.coordinates.lat,
-            lng: loc.coordinates.lng
-          },
-          title: loc.title,
-          description: loc.description
-        })),
-        duration,
-        timestamp: Date.now()
-      };
-    } catch (error) {
-      console.error('Error simplifying tour state:', error);
-      return null;
-    }
-  }, [tour, duration, isGoogleLoaded]);
-
-  // Convert back to Google Maps objects for rendering
-  const directionsResult = React.useMemo(() => {
-    if (!simplifiedState?.route || !isGoogleLoaded) return null;
-
-    try {
-      const firstRoute = simplifiedState.route.routes[0];
-      if (!firstRoute) {
-        console.error('No route found in directions response');
-        return null;
-      }
-
-      return {
-        routes: [convertRoute(firstRoute)],
-        geocoded_waypoints: simplifiedState.route.geocoded_waypoints?.map(waypoint => ({
-          place_id: waypoint.place_id || '',
-          types: waypoint.types || [],
-          partial_match: waypoint.partial_match || false
-        })) || [],
-        request: null
-      };
-    } catch (error) {
-      console.error('Error converting directions result:', error);
-      return null;
-    }
-  }, [simplifiedState?.route, isGoogleLoaded, convertRoute]);
-
-  // Memoized renderer options
-  const directionsRendererOptions = React.useMemo(() => ({
+  // Simplified renderer options
+  const directionsRendererOptions = {
     suppressMarkers: false,
     markerOptions: {
       label: {
@@ -373,10 +322,10 @@ export default function YourTour() {
         fontWeight: 'bold'
       }
     }
-  }), []);
+  };
 
-  // Memoized storage update handler
-  const handleStorageUpdate = React.useCallback(() => {
+  // Storage update handler
+  const handleStorageUpdate = () => {
     if (!tour?.response || !isGoogleLoaded) return;
     
     try {
@@ -399,97 +348,12 @@ export default function YourTour() {
     } catch (error) {
       console.error('Error saving tour state:', error);
     }
-  }, [tour, duration, isGoogleLoaded]);
+  };
 
   // Storage effect
   React.useEffect(() => {
     handleStorageUpdate();
-  }, [handleStorageUpdate]);
-
-  // Save simplified state
-  React.useEffect(() => {
-    if (simplifiedState) {
-      localStorage.setItem('currentTour', JSON.stringify(simplifiedState));
-    }
-  }, [simplifiedState]);
-
-  // Load from storage if needed
-  React.useEffect(() => {
-    if (!location.state?.selectedRoute) {
-      const stored = localStorage.getItem('currentTour');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as SimplifiedTourState;
-          if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
-            setDuration(parsed.duration);
-            // Reconstruct tour object
-            setTour({
-              name: 'Restored Tour',
-              description: 'Tour restored from storage',
-              locations: parsed.artLocations.map(art => ({
-                id: art.id,
-                title: art.title,
-                description: art.description || '',
-                coordinates: art.location
-              })),
-              response: reconstructDirectionsResult(parsed.route)
-            });
-          } else {
-            localStorage.removeItem('currentTour');
-            navigate('/');
-          }
-        } catch (error) {
-          console.error('Error loading stored tour:', error);
-          navigate('/');
-        }
-      } else {
-        navigate('/');
-      }
-    }
-  }, [location.state, navigate, isGoogleLoaded]);
-
-  // Load tour data from state or storage
-  React.useEffect(() => {
-    if (location.state?.selectedRoute) {
-      const { selectedRoute, duration: tourDuration } = location.state;
-      setTour(selectedRoute);
-      setDuration(tourDuration || 0);
-      // Save to storage
-      saveTourState({
-        selectedRoute,
-        duration: tourDuration || 0
-      });
-    } else {
-      // Try to load from storage
-      const stored = loadTourState();
-      if (stored) {
-        const { selectedRoute, duration: storedDuration } = stored;
-        if (selectedRoute && selectedRoute.response) {
-          setTour(selectedRoute as TourVariation & { response: SerializableDirectionsResult });
-          setDuration(storedDuration);
-        } else {
-          setError({ message: 'Invalid tour data in storage.' });
-          navigate('/');
-        }
-      } else {
-        setError({ message: 'No tour data found. Please select a tour first.' });
-        navigate('/');
-      }
-    }
-  }, [location.state, navigate]);
-
-  // Handle Google Maps load
-  const handleGoogleMapsLoad = React.useCallback(() => {
-    setIsGoogleLoaded(true);
-  }, []);
-
-  // Handle location updates
-  const handleLocationUpdate = React.useCallback((position: GeolocationPosition) => {
-    if (!isGoogleLoaded) return;
-    
-    const { latitude, longitude } = position.coords;
-    setUserLocation(new google.maps.LatLng(latitude, longitude));
-  }, [isGoogleLoaded]);
+  }, [tour, duration, isGoogleLoaded]);
 
   // Location watching effect with proper cleanup
   React.useEffect(() => {
@@ -523,74 +387,8 @@ export default function YourTour() {
     return cleanup;
   }, [isGoogleLoaded, tour, handleLocationUpdate]);
 
-  // Memoized step component to prevent infinite loops
-  const StepWithNearbyArt = React.memo(({ 
-    step, 
-    locations, 
-    isGoogleLoaded, 
-    index, 
-    isCurrentStep,
-    onArtCardClick,
-    maximizedCard
-  }: {
-    step: google.maps.DirectionsStep;
-    locations: ArtLocation[];
-    isGoogleLoaded: boolean;
-    index: number;
-    isCurrentStep: boolean;
-    onArtCardClick: (index: number) => void;
-    maximizedCard: number | null;
-  }) => {
-    const nearbyArt = useNearbyArt(step, locations, isGoogleLoaded);
-    const isArtStop = isGoogleLoaded && locations.some(loc => {
-      const stepPath = step.path?.[0];
-      if (!stepPath) return false;
-
-      const stepLatLng = toLatLngLiteral(stepPath);
-      const locationLatLng = {
-        lat: loc.coordinates.lat,
-        lng: loc.coordinates.lng
-      } as LatLngLiteral;
-
-      return isWithinDistance(stepLatLng, locationLatLng, 50);
-    });
-
-    return (
-      <React.Fragment>
-        {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
-        <div className={`flex items-start p-4 rounded-lg ${
-          isCurrentStep ? 'bg-blue-50 border-2 border-blue-500' : ''
-        }`}>
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3 ${
-            isCurrentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-          }`}>
-            {index + 1}
-          </div>
-          <div className="flex-1">
-            <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
-            <p className="text-sm text-gray-600 mt-1">
-              {step.distance?.text} · {step.duration?.text}
-            </p>
-            {nearbyArt && (
-              <div className="mt-2">
-                <button
-                  onClick={() => onArtCardClick(nearbyArt.index)}
-                  className="text-blue-500 hover:text-blue-700"
-                >
-                  Nearby: {nearbyArt.location.title}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </React.Fragment>
-    );
-  });
-
-  StepWithNearbyArt.displayName = 'StepWithNearbyArt';
-
-  // Memoized art card component
-  const ArtCard = React.memo(({ 
+  // Art card component
+  const ArtCard = ({ 
     artLocation, 
     isMaximized, 
     onClose,
@@ -632,7 +430,6 @@ export default function YourTour() {
               className="w-full h-64 object-cover rounded mb-4"
             />
           )}
-          {/* Action buttons */}
           <div className="flex flex-wrap gap-4 mt-4">
             {artLocation.arEnabled && artLocation.arContent && (
               <button 
@@ -666,7 +463,6 @@ export default function YourTour() {
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center space-x-2"
               onClick={(e) => {
                 e.stopPropagation();
-                // Add share logic here
                 if (navigator.share) {
                   navigator.share({
                     title: artLocation.title,
@@ -708,9 +504,64 @@ export default function YourTour() {
         </div>
       </div>
     );
-  });
+  };
 
-  ArtCard.displayName = 'ArtCard';
+  // Step component
+  const Step = ({
+    step,
+    index,
+    isCurrentStep,
+    artLocation,
+    artLocationIndex,
+    maximizedArtCard,
+    onArtCardClick,
+    onARClick
+  }: {
+    step: google.maps.DirectionsStep;
+    index: number;
+    isCurrentStep: boolean;
+    artLocation?: ArtLocation;
+    artLocationIndex: number;
+    maximizedArtCard: number | null;
+    onArtCardClick: (index: number) => void;
+    onARClick: (artwork: ArtLocation) => void;
+  }) => {
+    const isArtStop = !!artLocation;
+
+    return (
+      <React.Fragment>
+        {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
+        <div className={`flex items-start p-4 rounded-lg ${
+          isCurrentStep ? 'bg-blue-50 border-2 border-blue-500' : ''
+        }`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3 ${
+            isCurrentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+          }`}>
+            {index + 1}
+          </div>
+          <div className="flex-1">
+            <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
+            <p className="text-sm text-gray-600 mt-1">
+              {step.distance?.text} · {step.duration?.text}
+            </p>
+          </div>
+        </div>
+        {isArtStop && artLocation && (
+          <div className="ml-9 mt-2 mb-4">
+            <ArtCard
+              artLocation={artLocation}
+              isMaximized={maximizedArtCard === artLocationIndex}
+              onClose={() => setMaximizedArtCard(null)}
+              onARClick={onARClick}
+              onArtCardClick={onArtCardClick}
+              index={artLocationIndex}
+            />
+          </div>
+        )}
+        {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
+      </React.Fragment>
+    );
+  };
 
   if (!tour || !tour.response) {
     return (
@@ -862,15 +713,15 @@ export default function YourTour() {
               )}
 
               {/* Display the route */}
-              {directionsResult && (
+              {convertRoute(tour.response.routes[0]) && (
                 <DirectionsRenderer
                   options={{
                     directions: {
-                      ...directionsResult,
+                      ...convertRoute(tour.response.routes[0]),
                       request: {
                         travelMode: google.maps.TravelMode.WALKING,
-                        destination: directionsResult.routes[0].legs[0].end_location,
-                        origin: directionsResult.routes[0].legs[0].start_location,
+                        destination: tour.response.routes[0].legs[0].end_location,
+                        origin: tour.response.routes[0].legs[0].start_location,
                       }
                     },
                     ...directionsRendererOptions
@@ -939,15 +790,38 @@ export default function YourTour() {
               </div>
               <div className="space-y-4">
                 {leg.steps.map((step, index) => (
-                  <StepWithNearbyArt
+                  <Step
                     key={index}
                     step={step}
-                    locations={tour.locations}
-                    isGoogleLoaded={isGoogleLoaded}
                     index={index}
                     isCurrentStep={currentStepIndex === index}
+                    artLocation={tour.locations.find((location, locationIndex) => {
+                      const stepPath = step.path?.[0];
+                      if (!stepPath) return false;
+
+                      const stepLatLng = toLatLngLiteral(stepPath);
+                      const locationLatLng = {
+                        lat: location.coordinates.lat,
+                        lng: location.coordinates.lng
+                      } as LatLngLiteral;
+
+                      return isWithinDistance(stepLatLng, locationLatLng, 50);
+                    })}
+                    artLocationIndex={tour.locations.findIndex((location, locationIndex) => {
+                      const stepPath = step.path?.[0];
+                      if (!stepPath) return false;
+
+                      const stepLatLng = toLatLngLiteral(stepPath);
+                      const locationLatLng = {
+                        lat: location.coordinates.lat,
+                        lng: location.coordinates.lng
+                      } as LatLngLiteral;
+
+                      return isWithinDistance(stepLatLng, locationLatLng, 50);
+                    })}
+                    maximizedArtCard={maximizedArtCard}
                     onArtCardClick={handleArtCardClick}
-                    maximizedCard={maximizedArtCard}
+                    onARClick={handleARClick}
                   />
                 ))}
               </div>
