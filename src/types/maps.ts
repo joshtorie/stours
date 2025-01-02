@@ -207,3 +207,58 @@ export function reconstructDirectionsResult(simplified: SimplifiedRoute): google
     geocoded_waypoints: []
   } as google.maps.DirectionsResult;
 }
+
+/**
+ * Convert functions for Google Maps objects
+ */
+
+export function toGoogleMapsLatLng(coords: SerializableLatLng): google.maps.LatLng {
+  return new google.maps.LatLng(coords.lat, coords.lng);
+}
+
+export function toGoogleMapsBounds(bounds: SerializableBounds): google.maps.LatLngBounds {
+  return new google.maps.LatLngBounds(
+    toGoogleMapsLatLng(bounds.southwest),
+    toGoogleMapsLatLng(bounds.northeast)
+  );
+}
+
+export function toGoogleMapsRoute(route: SerializableRoute): google.maps.DirectionsRoute {
+  return {
+    bounds: toGoogleMapsBounds(route.bounds),
+    legs: route.legs.map(leg => ({
+      distance: leg.distance,
+      duration: leg.duration,
+      end_address: leg.end_address,
+      start_address: leg.start_address,
+      end_location: toGoogleMapsLatLng(leg.end_location),
+      start_location: toGoogleMapsLatLng(leg.start_location),
+      steps: leg.steps.map(step => ({
+        distance: step.distance,
+        duration: step.duration,
+        end_location: toGoogleMapsLatLng(step.end_location),
+        start_location: toGoogleMapsLatLng(step.start_location),
+        instructions: step.instructions,
+        path: step.path?.map(toGoogleMapsLatLng),
+        travel_mode: step.travel_mode
+      })),
+      via_waypoints: leg.via_waypoints?.map(toGoogleMapsLatLng) || []
+    })),
+    overview_path: route.overview_path?.map(toGoogleMapsLatLng),
+    overview_polyline: typeof route.overview_polyline === 'string' 
+      ? { points: route.overview_polyline }
+      : route.overview_polyline,
+    warnings: route.warnings,
+    waypoint_order: route.waypoint_order,
+    summary: route.summary,
+    copyrights: route.copyrights
+  };
+}
+
+export function toGoogleMapsDirectionsResult(result: SerializableDirectionsResult): google.maps.DirectionsResult {
+  return {
+    routes: result.routes.map(toGoogleMapsRoute),
+    geocoded_waypoints: result.geocoded_waypoints,
+    request: result.request
+  } as google.maps.DirectionsResult;
+}
