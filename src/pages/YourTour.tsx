@@ -16,6 +16,7 @@ import {
 import type { SerializableDirectionsResult } from '../types/maps';
 import { isSerializableDirectionsResult } from '../types/maps';
 import { validateDirectionsResult, logValidationErrors } from '../utils/routeValidation';
+import { saveTourState, loadTourState } from '../utils/storage';
 
 // Google Maps types
 type LatLngLiteral = google.maps.LatLngLiteral;
@@ -108,20 +109,84 @@ function useNearbyArt(step: google.maps.DirectionsStep | null, locations: ArtLoc
 export default function YourTour() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedRoute: tour, duration } = location.state as TourState;
-  
-  // Custom hooks
-  const { isLoaded: isGoogleLoaded, error: mapsError } = useGoogleMaps();
-  const { location: userLocation, error: locationError } = useUserLocation(isGoogleLoaded);
-  
-  // State
-  const [currentStepIndex, setCurrentStepIndex] = React.useState<number>(0);
-  const [isPaused, setIsPaused] = React.useState<boolean>(false);
+  const [tour, setTour] = React.useState<TourVariation & { response: SerializableDirectionsResult } | null>(null);
+  const [duration, setDuration] = React.useState<number>(0);
+  const [error, setError] = React.useState<{ message: string } | null>(null);
+  const [mapsError, setMapsError] = React.useState<{ message: string } | null>(null);
+  const [locationError, setLocationError] = React.useState<{ message: string } | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
+  const [isPaused, setIsPaused] = React.useState(false);
+  const [userLocation, setUserLocation] = React.useState<google.maps.LatLng | null>(null);
+  const [isGoogleLoaded, setIsGoogleLoaded] = React.useState(false);
   const [maximizedArtCard, setMaximizedArtCard] = React.useState<number | null>(null);
   const [showARViewer, setShowARViewer] = React.useState(false);
   const [selectedArtwork, setSelectedArtwork] = React.useState<ArtLocation | null>(null);
   const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
   const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
+
+  // Load tour data from state or storage
+  React.useEffect(() => {
+    if (location.state?.selectedRoute) {
+      setTour(location.state.selectedRoute);
+      setDuration(location.state.duration || 0);
+      // Save to storage
+      saveTourState({
+        selectedRoute: location.state.selectedRoute,
+        duration: location.state.duration || 0
+      });
+    } else {
+      // Try to load from storage
+      const stored = loadTourState();
+      if (stored) {
+        setTour(stored.selectedRoute);
+        setDuration(stored.duration);
+      } else {
+        setError({ message: 'No tour data found. Please select a tour first.' });
+      }
+    }
+  }, [location.state]);
+
+  // Handle Google Maps load
+  const handleGoogleMapsLoad = React.useCallback(() => {
+    setIsGoogleLoaded(true);
+  }, []);
+
+  // Handle location updates
+  const handleLocationUpdate = React.useCallback((position: GeolocationPosition) => {
+    if (!isGoogleLoaded) return;
+    
+    const { latitude, longitude } = position.coords;
+    setUserLocation(new google.maps.LatLng(latitude, longitude));
+  }, [isGoogleLoaded]);
+
+  // Watch user location
+  React.useEffect(() => {
+    if (!isGoogleLoaded || !tour) return;
+
+    let watchId: number;
+    if ('geolocation' in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        handleLocationUpdate,
+        (error) => {
+          console.error('Location error:', error);
+          setLocationError({ message: error.message });
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 5000
+        }
+      );
+    } else {
+      setLocationError({ message: 'Geolocation is not supported by your browser.' });
+    }
+
+    return () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [isGoogleLoaded, tour, handleLocationUpdate]);
 
   // Convert serialized response back to DirectionsResult
   const directionsResult = React.useMemo((): DirectionsResult | null => {

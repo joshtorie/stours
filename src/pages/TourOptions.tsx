@@ -11,6 +11,7 @@ import type {
 } from '../types/maps';
 import { isSerializableDirectionsResult } from '../types/maps';
 import { validateDirectionsResult, logValidationErrors } from '../utils/routeValidation';
+import { getTourHistory, clearTourData } from '../utils/storage';
 
 export default function TourOptions() {
   const location = useLocation();
@@ -22,6 +23,31 @@ export default function TourOptions() {
   const [selectedTour, setSelectedTour] = useState<number | null>(null);
   const [requestCount, setRequestCount] = useState<Record<number, number>>({});
   const [error, setError] = useState<{ title: string; message: string; details: string } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [tourHistory, setTourHistory] = useState<ReturnType<typeof getTourHistory>>([]);
+
+  // Load tour history
+  useEffect(() => {
+    const history = getTourHistory();
+    setTourHistory(history);
+  }, []);
+
+  // Handle history selection
+  const handleHistorySelect = (historyItem: ReturnType<typeof getTourHistory>[0]) => {
+    navigate('/your-tour', {
+      state: {
+        selectedRoute: historyItem.selectedRoute,
+        duration: historyItem.duration
+      }
+    });
+  };
+
+  // Clear history
+  const handleClearHistory = () => {
+    clearTourData();
+    setTourHistory([]);
+    setShowHistory(false);
+  };
 
   // Request directions for all tours when component mounts
   useEffect(() => {
@@ -360,6 +386,35 @@ export default function TourOptions() {
             </div>
           ))}
         </div>
+        <button
+          onClick={() => setShowHistory(prev => !prev)}
+          className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium"
+        >
+          {showHistory ? 'Hide History' : 'Show History'}
+        </button>
+        {showHistory && (
+          <div className="mt-4">
+            <h2 className="text-xl font-bold mb-2">Tour History</h2>
+            <ul>
+              {tourHistory.map((historyItem, index) => (
+                <li key={index} className="mb-2">
+                  <button
+                    onClick={() => handleHistorySelect(historyItem)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium"
+                  >
+                    {historyItem.selectedRoute.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={handleClearHistory}
+              className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg font-medium"
+            >
+              Clear History
+            </button>
+          </div>
+        )}
       </div>
     </GoogleMapsWrapper>
   );
