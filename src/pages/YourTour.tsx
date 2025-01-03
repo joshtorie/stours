@@ -67,7 +67,10 @@ export default function YourTour() {
 
   // Location watching effect with proper cleanup
   React.useEffect(() => {
-    if (!isGoogleLoaded) return;
+    if (!isGoogleLoaded || !window.google?.maps) {
+      console.log('Google Maps not loaded yet');
+      return;
+    }
 
     let watchId: number;
     const cleanup = () => {
@@ -81,7 +84,10 @@ export default function YourTour() {
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           try {
-            const newLocation = new google.maps.LatLng(
+            if (!window.google?.maps) {
+              throw new Error('Google Maps not loaded');
+            }
+            const newLocation = new window.google.maps.LatLng(
               position.coords.latitude,
               position.coords.longitude
             );
@@ -184,7 +190,7 @@ export default function YourTour() {
 
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const newLocation = new google.maps.LatLng(
+          const newLocation = new window.google.maps.LatLng(
             position.coords.latitude,
             position.coords.longitude
           );
@@ -212,7 +218,7 @@ export default function YourTour() {
     return React.useMemo(() => {
       if (!step?.path?.[0] || !isGoogleLoaded || !locations.length) return null;
 
-      const stepLocation = new google.maps.LatLng(
+      const stepLocation = new window.google.maps.LatLng(
         step.path[0].lat(),
         step.path[0].lng()
       );
@@ -220,7 +226,7 @@ export default function YourTour() {
       let minDistance = Infinity;
 
       locations.forEach((loc, index) => {
-        const distance = google.maps.geometry.spherical.computeDistanceBetween(
+        const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
           { lat: loc.coordinates.lat, lng: loc.coordinates.lng } as LatLngLiteral,
           stepLocation
         );
@@ -297,12 +303,12 @@ export default function YourTour() {
   function reconstructDirectionsResult(simplifiedRoute: any) {
     return {
       routes: simplifiedRoute.routes.map(route => ({
-        bounds: new google.maps.LatLngBounds(
-          new google.maps.LatLng(
+        bounds: new window.google.maps.LatLngBounds(
+          new window.google.maps.LatLng(
             route.bounds.southwest.lat,
             route.bounds.southwest.lng
           ),
-          new google.maps.LatLng(
+          new window.google.maps.LatLng(
             route.bounds.northeast.lat,
             route.bounds.northeast.lng
           )
@@ -312,31 +318,31 @@ export default function YourTour() {
           steps: leg.steps.map(step => ({
             ...step,
             path: step.path?.map(point => 
-              new google.maps.LatLng(point.lat, point.lng)
+              new window.google.maps.LatLng(point.lat, point.lng)
             ),
-            start_location: new google.maps.LatLng(
+            start_location: new window.google.maps.LatLng(
               step.start_location.lat,
               step.start_location.lng
             ),
-            end_location: new google.maps.LatLng(
+            end_location: new window.google.maps.LatLng(
               step.end_location.lat,
               step.end_location.lng
             )
           })),
-          start_location: new google.maps.LatLng(
+          start_location: new window.google.maps.LatLng(
             leg.start_location.lat,
             leg.start_location.lng
           ),
-          end_location: new google.maps.LatLng(
+          end_location: new window.google.maps.LatLng(
             leg.end_location.lat,
             leg.end_location.lng
           ),
           via_waypoints: leg.via_waypoints?.map(point => 
-            new google.maps.LatLng(point.lat, point.lng)
+            new window.google.maps.LatLng(point.lat, point.lng)
           ) || []
         })),
         overview_path: route.overview_path?.map(point => 
-          new google.maps.LatLng(point.lat, point.lng)
+          new window.google.maps.LatLng(point.lat, point.lng)
         ),
         warnings: route.warnings || [],
         waypoint_order: route.waypoint_order || [],
@@ -352,15 +358,15 @@ export default function YourTour() {
   }
 
   function createLatLng(lat: number, lng: number): google.maps.LatLng {
-    return new google.maps.LatLng(lat, lng);
+    return new window.google.maps.LatLng(lat, lng);
   }
 
   // Convert serializable route to Google Maps objects
   const toGoogleMapsRoute = React.useCallback((route: SerializableRoute): google.maps.DirectionsRoute => {
     const createLatLng = (coords: SerializableLatLng): google.maps.LatLng => 
-      new google.maps.LatLng(coords.lat, coords.lng);
+      new window.google.maps.LatLng(coords.lat, coords.lng);
 
-    const bounds = new google.maps.LatLngBounds(
+    const bounds = new window.google.maps.LatLngBounds(
       createLatLng(route.bounds.southwest),
       createLatLng(route.bounds.northeast)
     );
@@ -559,7 +565,7 @@ export default function YourTour() {
                 <MarkerF
                   position={userLocation}
                   icon={{
-                    path: google.maps.SymbolPath.CIRCLE,
+                    path: window.google.maps.SymbolPath.CIRCLE,
                     scale: 8,
                     fillColor: "#4285F4",
                     fillOpacity: 1,
@@ -644,47 +650,51 @@ export default function YourTour() {
                     isCurrentStep={currentStepIndex === index}
                     artLocation={tour.locations.find((location) => {
                       const stepPath = step.path?.[0];
-                      if (!stepPath) return false;
+                      if (!stepPath || !window.google?.maps) return false;
 
                       // Convert to LatLng if needed
-                      const stepLatLng = stepPath instanceof google.maps.LatLng
+                      const stepLatLng = stepPath instanceof window.google.maps.LatLng
                         ? stepPath
-                        : new google.maps.LatLng(
+                        : new window.google.maps.LatLng(
                             typeof stepPath.lat === 'function' ? stepPath.lat() : stepPath.lat,
                             typeof stepPath.lng === 'function' ? stepPath.lng() : stepPath.lng
                           );
 
-                      const locationLatLng = new google.maps.LatLng(
+                      const locationLatLng = new window.google.maps.LatLng(
                         location.coordinates.lat,
                         location.coordinates.lng
                       );
 
-                      return google.maps.geometry.spherical.computeDistanceBetween(
+                      const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
                         stepLatLng,
                         locationLatLng
-                      ) < 50;
+                      );
+
+                      return distance < 50;
                     })}
                     artLocationIndex={tour.locations.findIndex((location) => {
                       const stepPath = step.path?.[0];
-                      if (!stepPath) return false;
+                      if (!stepPath || !window.google?.maps) return -1;
 
                       // Convert to LatLng if needed
-                      const stepLatLng = stepPath instanceof google.maps.LatLng
+                      const stepLatLng = stepPath instanceof window.google.maps.LatLng
                         ? stepPath
-                        : new google.maps.LatLng(
+                        : new window.google.maps.LatLng(
                             typeof stepPath.lat === 'function' ? stepPath.lat() : stepPath.lat,
                             typeof stepPath.lng === 'function' ? stepPath.lng() : stepPath.lng
                           );
 
-                      const locationLatLng = new google.maps.LatLng(
+                      const locationLatLng = new window.google.maps.LatLng(
                         location.coordinates.lat,
                         location.coordinates.lng
                       );
 
-                      return google.maps.geometry.spherical.computeDistanceBetween(
+                      const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
                         stepLatLng,
                         locationLatLng
-                      ) < 50;
+                      );
+
+                      return distance < 50;
                     })}
                     maximizedArtCard={maximizedArtCard}
                     onArtCardClick={handleArtCardClick}
@@ -848,39 +858,41 @@ function Step({
   onArtCardClick: (index: number) => void;
   onARClick: (artwork: ArtLocation) => void;
 }) {
-  const isArtStop = !!artLocation;
+  const isArtStop = artLocation !== undefined && artLocationIndex !== -1;
+  const isMaximized = isArtStop && maximizedArtCard === artLocationIndex;
 
   return (
-    <React.Fragment>
-      {isArtStop && <div className="border-t-2 border-blue-500 my-4" />}
-      <div className={`flex items-start p-4 rounded-lg ${
-        isCurrentStep ? 'bg-blue-50 border-2 border-blue-500' : ''
-      }`}>
-        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-3 ${
-          isCurrentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+    <div className={`p-4 rounded-lg ${isCurrentStep ? 'bg-blue-50 border-2 border-blue-500' : 'bg-white'}`}>
+      <div className="flex items-start space-x-4">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+          isCurrentStep ? 'bg-blue-500 text-white' : 'bg-gray-200'
         }`}>
           {index + 1}
         </div>
         <div className="flex-1">
-          <p dangerouslySetInnerHTML={{ __html: step.instructions }} />
-          <p className="text-sm text-gray-600 mt-1">
-            {step.distance?.text} · {step.duration?.text}
-          </p>
+          <div 
+            dangerouslySetInnerHTML={{ __html: step.instructions }} 
+            className="prose prose-sm max-w-none"
+          />
+          {step.distance && step.duration && (
+            <div className="text-sm text-gray-600 mt-1">
+              {step.distance.text} · {step.duration.text}
+            </div>
+          )}
+          {isArtStop && artLocation && (
+            <div className="mt-4">
+              <ArtCard
+                artLocation={artLocation}
+                isMaximized={isMaximized}
+                onClose={() => onArtCardClick(-1)}
+                onARClick={onARClick}
+                onArtCardClick={() => onArtCardClick(artLocationIndex)}
+                index={artLocationIndex}
+              />
+            </div>
+          )}
         </div>
       </div>
-      {isArtStop && artLocation && (
-        <div className="ml-9 mt-2 mb-4">
-          <ArtCard
-            artLocation={artLocation}
-            isMaximized={maximizedArtCard === artLocationIndex}
-            onClose={() => setMaximizedArtCard(null)}
-            onARClick={onARClick}
-            onArtCardClick={onArtCardClick}
-            index={artLocationIndex}
-          />
-        </div>
-      )}
-      {isArtStop && <div className="border-b-2 border-blue-500 my-4" />}
-    </React.Fragment>
+    </div>
   );
 }

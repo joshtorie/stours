@@ -213,22 +213,34 @@ export function reconstructDirectionsResult(simplified: SimplifiedRoute): google
  */
 
 export function toGoogleMapsLatLng(coords: SerializableLatLng | google.maps.LatLng | google.maps.LatLngLiteral): google.maps.LatLng {
-  if (coords instanceof google.maps.LatLng) {
+  if (!window.google?.maps) {
+    throw new Error('Google Maps not loaded');
+  }
+
+  if (coords instanceof window.google.maps.LatLng) {
     return coords;
   }
   const lat = typeof coords.lat === 'function' ? coords.lat() : coords.lat;
   const lng = typeof coords.lng === 'function' ? coords.lng() : coords.lng;
-  return new google.maps.LatLng(lat, lng);
+  return new window.google.maps.LatLng(lat, lng);
 }
 
 export function toGoogleMapsBounds(bounds: SerializableBounds): google.maps.LatLngBounds {
-  return new google.maps.LatLngBounds(
+  if (!window.google?.maps) {
+    throw new Error('Google Maps not loaded');
+  }
+
+  return new window.google.maps.LatLngBounds(
     toGoogleMapsLatLng(bounds.southwest),
     toGoogleMapsLatLng(bounds.northeast)
   );
 }
 
 export function toGoogleMapsRoute(route: SerializableRoute): google.maps.DirectionsRoute {
+  if (!window.google?.maps) {
+    throw new Error('Google Maps not loaded');
+  }
+
   return {
     bounds: toGoogleMapsBounds(route.bounds),
     legs: route.legs.map(leg => ({
@@ -261,6 +273,10 @@ export function toGoogleMapsRoute(route: SerializableRoute): google.maps.Directi
 }
 
 export function toGoogleMapsDirectionsResult(result: SerializableDirectionsResult): google.maps.DirectionsResult {
+  if (!window.google?.maps) {
+    throw new Error('Google Maps not loaded');
+  }
+
   try {
     return {
       routes: result.routes.map(toGoogleMapsRoute),
