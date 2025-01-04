@@ -21,7 +21,11 @@ interface SelectedLocation {
   imageUrl: string;
   shopUrl: string;
   arEnabled: boolean;
-  arContent: string;
+  arContent: {
+    modelUrl: string;
+    imageUrl: string;
+    iosQuickLook: string;
+  } | null;
 }
 
 interface TourVariation {
@@ -174,6 +178,33 @@ export default function TourCreate() {
           const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
           
           if (artwork && selectedArtist) {
+            // Get the public URL for the image
+            const { data: { publicUrl: imageUrl } } = artwork.image ? 
+              supabase.storage.from('street_art_images').getPublicUrl(artwork.image) : 
+              { data: { publicUrl: null } };
+
+            // Get public URLs for AR content
+            let arContent = null;
+            if (artwork.ar_content) {
+              const { data: { publicUrl: modelUrl } } = supabase.storage
+                .from('ar_models')
+                .getPublicUrl(artwork.ar_content.modelUrl);
+
+              const { data: { publicUrl: previewUrl } } = artwork.ar_content.imageUrl ?
+                supabase.storage.from('ar_previews').getPublicUrl(artwork.ar_content.imageUrl) :
+                { data: { publicUrl: null } };
+
+              const { data: { publicUrl: iosUrl } } = artwork.ar_content.iosQuickLook ?
+                supabase.storage.from('ar_models').getPublicUrl(artwork.ar_content.iosQuickLook) :
+                { data: { publicUrl: null } };
+
+              arContent = {
+                modelUrl,
+                imageUrl: previewUrl,
+                iosQuickLook: iosUrl
+              };
+            }
+
             return {
               id: artwork.id,
               title: artwork.title || 'Untitled',
@@ -182,10 +213,10 @@ export default function TourCreate() {
                 lat: artwork.latitude,
                 lng: artwork.longitude
               },
-              imageUrl: artwork.image || '',
+              imageUrl: imageUrl || '',
               shopUrl: artwork.shop_url,
               arEnabled: artwork.ar_enabled,
-              arContent: artwork.ar_content
+              arContent: arContent
             };
           }
           return null;
@@ -529,7 +560,7 @@ export default function TourCreate() {
         imageUrl: artwork.image || '',
         shopUrl: artwork.shop_url,
         arEnabled: artwork.ar_enabled,
-        arContent: artwork.ar_content
+        arContent: null
       };
     });
   };
@@ -561,7 +592,7 @@ export default function TourCreate() {
         imageUrl: artwork.image || '',
         shopUrl: artwork.shop_url,
         arEnabled: artwork.ar_enabled,
-        arContent: artwork.ar_content
+        arContent: null
       };
     });
   };
@@ -593,7 +624,7 @@ export default function TourCreate() {
         imageUrl: artwork.image || '',
         shopUrl: artwork.shop_url,
         arEnabled: artwork.ar_enabled,
-        arContent: artwork.ar_content
+        arContent: null
       };
     });
   };

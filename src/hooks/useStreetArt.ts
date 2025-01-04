@@ -49,18 +49,42 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
         
         // Transform data to include full image URLs
         const transformedData = data?.map(art => {
-          // Get the base URL without /object/public
-          const baseUrl = supabase.supabaseUrl.replace('https://', 'https://impgpcljswbjfzdpinjq.');
+          // Get the public URL for the image
+          const { data: { publicUrl: imageUrl } } = art.image ? 
+            supabase.storage.from('street_art_images').getPublicUrl(art.image) : 
+            { data: { publicUrl: null } };
+
+          // Get public URLs for AR content
+          let arContent = null;
+          if (art.ar_content) {
+            const { data: { publicUrl: modelUrl } } = supabase.storage
+              .from('ar_models')
+              .getPublicUrl(art.ar_content.modelUrl);
+
+            const { data: { publicUrl: previewUrl } } = art.ar_content.imageUrl ?
+              supabase.storage.from('ar_previews').getPublicUrl(art.ar_content.imageUrl) :
+              { data: { publicUrl: null } };
+
+            const { data: { publicUrl: iosUrl } } = art.ar_content.iosQuickLook ?
+              supabase.storage.from('ar_models').getPublicUrl(art.ar_content.iosQuickLook) :
+              { data: { publicUrl: null } };
+
+            const { data: { publicUrl: markerUrl } } = art.ar_content.markerImage ?
+              supabase.storage.from('ar_markers').getPublicUrl(art.ar_content.markerImage) :
+              { data: { publicUrl: null } };
+
+            arContent = {
+              modelUrl,
+              imageUrl: previewUrl,
+              iosQuickLook: iosUrl,
+              markerImage: markerUrl
+            };
+          }
 
           return {
             ...art,
-            image: art.image ? `${baseUrl}/storage/v1/object/public/street_art_images/${art.image}` : null,
-            ar_content: art.ar_content ? {
-              modelUrl: `${baseUrl}/storage/v1/object/public/ar_models/${art.ar_content.modelUrl}`,
-              imageUrl: art.ar_content.imageUrl ? `${baseUrl}/storage/v1/object/public/ar_previews/${art.ar_content.imageUrl}` : null,
-              iosQuickLook: art.ar_content.iosQuickLook ? `${baseUrl}/storage/v1/object/public/ar_models/${art.ar_content.iosQuickLook}` : null,
-              markerImage: art.ar_content.markerImage ? `${baseUrl}/storage/v1/object/public/ar_markers/${art.ar_content.markerImage}` : null
-            } : null
+            image: imageUrl,
+            ar_content: arContent
           };
         }) || [];
 
