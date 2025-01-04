@@ -49,45 +49,21 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
         
         // Transform data to include full image URLs
         const transformedData = data?.map(art => {
-          // Get the public URL for the image
-          const { data: { publicUrl: imageUrl } } = art.image ? 
-            supabase.storage.from('street_art_images').getPublicUrl(art.image) : 
-            { data: { publicUrl: null } };
-
-          // Get public URLs for AR content
-          let arContent = null;
-          if (art.ar_content) {
-            const { data: { publicUrl: modelUrl } } = supabase.storage
-              .from('ar_models')
-              .getPublicUrl(art.ar_content.modelUrl);
-
-            const { data: { publicUrl: previewUrl } } = art.ar_content.imageUrl ?
-              supabase.storage.from('ar_previews').getPublicUrl(art.ar_content.imageUrl) :
-              { data: { publicUrl: null } };
-
-            const { data: { publicUrl: iosUrl } } = art.ar_content.iosQuickLook ?
-              supabase.storage.from('ar_models').getPublicUrl(art.ar_content.iosQuickLook) :
-              { data: { publicUrl: null } };
-
-            const { data: { publicUrl: markerUrl } } = art.ar_content.markerImage ?
-              supabase.storage.from('ar_markers').getPublicUrl(art.ar_content.markerImage) :
-              { data: { publicUrl: null } };
-
-            arContent = {
-              modelUrl,
-              imageUrl: previewUrl,
-              iosQuickLook: iosUrl,
-              markerImage: markerUrl
-            };
-          }
-
+          // Just use the image URL directly as it's already stored as a public URL
           return {
             ...art,
-            image: imageUrl,
-            ar_content: arContent
+            image: art.image,
+            ar_content: art.ar_content ? {
+              ...art.ar_content,
+              modelUrl: art.ar_content.modelUrl,
+              imageUrl: art.ar_content.imageUrl,
+              iosQuickLook: art.ar_content.iosQuickLook,
+              markerImage: art.ar_content.markerImage
+            } : null
           };
         }) || [];
 
+        console.log('Transformed street art data:', transformedData);
         setStreetArt(transformedData);
       } catch (e) {
         console.error('Error fetching street art:', e);
