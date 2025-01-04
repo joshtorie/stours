@@ -672,84 +672,57 @@ export default function YourTour() {
                 </button>
               </div>
               <div className="space-y-4">
-                {leg.steps.map((step, index) => {
-                  // Find art location near this step
-                  const nearbyArt = tour.locations.find((location) => {
-                    if (!step.end_location || !window.google?.maps) return false;
+                {tour.response.routes[0].legs.flatMap((leg, legIndex) =>
+                  leg.steps.map((step, stepIndex) => {
+                    const globalStepIndex = leg.steps.slice(0, stepIndex).length + 
+                      tour.response.routes[0].legs.slice(0, legIndex).reduce((acc, l) => acc + l.steps.length, 0);
 
-                    const stepLatLng = step.end_location instanceof google.maps.LatLng
-                      ? step.end_location
-                      : new google.maps.LatLng(
-                          typeof step.end_location.lat === 'function' 
-                            ? step.end_location.lat() 
-                            : step.end_location.lat,
-                          typeof step.end_location.lng === 'function'
-                            ? step.end_location.lng()
-                            : step.end_location.lng
-                        );
+                    // Find art location that matches this step's end location
+                    const artMatch = tour.locations.find((location) => {
+                      if (!step.end_location || !window.google?.maps) return false;
 
-                    const locationLatLng = new google.maps.LatLng(
-                      location.coordinates.lat,
-                      location.coordinates.lng
+                      const stepLatLng = new google.maps.LatLng(
+                        step.end_location.lat(),
+                        step.end_location.lng()
+                      );
+
+                      const locationLatLng = new google.maps.LatLng(
+                        location.coordinates.lat,
+                        location.coordinates.lng
+                      );
+
+                      const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
+                        stepLatLng,
+                        locationLatLng
+                      );
+
+                      return distance < 20; // 20 meters threshold
+                    });
+
+                    const artIndex = artMatch ? tour.locations.indexOf(artMatch) : -1;
+
+                    return (
+                      <Step
+                        key={`${legIndex}-${stepIndex}`}
+                        step={step}
+                        index={globalStepIndex}
+                        isCurrentStep={currentStepIndex === globalStepIndex}
+                        artLocation={artMatch}
+                        artLocationIndex={artIndex}
+                        maximizedArtCard={maximizedArtCard}
+                        onArtCardClick={(idx) => {
+                          setMaximizedArtCard(idx === maximizedArtCard ? null : idx);
+                        }}
+                        onARClick={handleARClick}
+                      />
                     );
-
-                    const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
-                      stepLatLng,
-                      locationLatLng
-                    );
-
-                    // Only show art when we're at its exact location
-                    return distance < 10; // 10 meters threshold
-                  });
-
-                  const artIndex = tour.locations.findIndex((location) => {
-                    if (!step.end_location || !window.google?.maps) return false;
-
-                    const stepLatLng = step.end_location instanceof google.maps.LatLng
-                      ? step.end_location
-                      : new google.maps.LatLng(
-                          typeof step.end_location.lat === 'function' 
-                            ? step.end_location.lat() 
-                            : step.end_location.lat,
-                          typeof step.end_location.lng === 'function'
-                            ? step.end_location.lng()
-                            : step.end_location.lng
-                        );
-
-                    const locationLatLng = new google.maps.LatLng(
-                      location.coordinates.lat,
-                      location.coordinates.lng
-                    );
-
-                    const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
-                      stepLatLng,
-                      locationLatLng
-                    );
-
-                    // Only show art when we're at its exact location
-                    return distance < 10; // 10 meters threshold
-                  });
-
-                  return (
-                    <Step
-                      key={index}
-                      step={step}
-                      index={index}
-                      isCurrentStep={currentStepIndex === index}
-                      artLocation={nearbyArt}
-                      artLocationIndex={artIndex}
-                      maximizedArtCard={maximizedArtCard}
-                      onArtCardClick={(idx) => {
-                        // Only maximize/minimize the clicked card
-                        setMaximizedArtCard(idx === maximizedArtCard ? null : idx);
-                      }}
-                      onARClick={handleARClick}
-                    />
-                  );
-                })}
+                  })
+                )}
               </div>
             </div>
           </div>
+
+          {/* ... */}
         </div>
       </div>
       {showARViewer && selectedArtwork?.arContent && (
@@ -927,14 +900,68 @@ function Step({
           )}
           {isArtStop && artLocation && (
             <div className="mt-4">
-              <ArtCard
-                artLocation={artLocation}
-                isMaximized={isMaximized}
-                onClose={() => onArtCardClick(-1)}
-                onARClick={onARClick}
-                onArtCardClick={() => onArtCardClick(artLocationIndex)}
-                index={artLocationIndex}
-              />
+              <div 
+                className={`relative ${isMaximized ? 'w-full' : 'w-48'} cursor-pointer transition-all duration-300`}
+                onClick={() => onArtCardClick(artLocationIndex)}
+              >
+                <img
+                  src={artLocation.imageUrl}
+                  alt={artLocation.title}
+                  className={`w-full h-auto rounded-lg shadow-md transition-all duration-300 ${
+                    isMaximized ? 'max-h-96 object-contain' : 'max-h-32 object-cover'
+                  }`}
+                />
+                {isMaximized && (
+                  <div className="absolute bottom-4 right-4 flex space-x-2">
+                    {artLocation.arContent && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onARClick(artLocation);
+                        }}
+                        className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors"
+                      >
+                        <span className="sr-only">View in AR</span>
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    )}
+                    {artLocation.shopUrl && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(artLocation.shopUrl, '_blank');
+                        }}
+                        className="bg-green-500 text-white p-2 rounded-full hover:bg-green-600 transition-colors"
+                      >
+                        <span className="sr-only">Shop</span>
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Add share functionality
+                      }}
+                      className="bg-purple-500 text-white p-2 rounded-full hover:bg-purple-600 transition-colors"
+                    >
+                      <span className="sr-only">Share</span>
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+              {isMaximized && (
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold">{artLocation.title}</h3>
+                  <p className="text-gray-600 mt-2">{artLocation.description}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
