@@ -48,19 +48,25 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
         if (queryError) throw queryError;
         
         // Transform data to include full image URLs
-        const transformedData = data?.map(art => ({
-          ...art,
-          image: art.image ? `${supabase.storageUrl}/object/public/street_art_images/${art.image}` : null,
-          ar_content: art.ar_content ? {
-            modelUrl: `${supabase.storageUrl}/object/public/ar_models/${art.ar_content.modelUrl}`,
-            imageUrl: art.ar_content.imageUrl ? `${supabase.storageUrl}/object/public/ar_previews/${art.ar_content.imageUrl}` : null,
-            iosQuickLook: art.ar_content.iosQuickLook ? `${supabase.storageUrl}/object/public/ar_models/${art.ar_content.iosQuickLook}` : null,
-            markerImage: art.ar_content.markerImage ? `${supabase.storageUrl}/object/public/ar_markers/${art.ar_content.markerImage}` : null
-          } : null
-        })) || [];
+        const transformedData = data?.map(art => {
+          // Get the base URL without /object/public
+          const baseUrl = supabase.supabaseUrl.replace('https://', 'https://impgpcljswbjfzdpinjq.');
+
+          return {
+            ...art,
+            image: art.image ? `${baseUrl}/storage/v1/object/public/street_art_images/${art.image}` : null,
+            ar_content: art.ar_content ? {
+              modelUrl: `${baseUrl}/storage/v1/object/public/ar_models/${art.ar_content.modelUrl}`,
+              imageUrl: art.ar_content.imageUrl ? `${baseUrl}/storage/v1/object/public/ar_previews/${art.ar_content.imageUrl}` : null,
+              iosQuickLook: art.ar_content.iosQuickLook ? `${baseUrl}/storage/v1/object/public/ar_models/${art.ar_content.iosQuickLook}` : null,
+              markerImage: art.ar_content.markerImage ? `${baseUrl}/storage/v1/object/public/ar_markers/${art.ar_content.markerImage}` : null
+            } : null
+          };
+        }) || [];
 
         setStreetArt(transformedData);
       } catch (e) {
+        console.error('Error fetching street art:', e);
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);
