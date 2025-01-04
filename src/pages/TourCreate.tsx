@@ -209,7 +209,7 @@ export default function TourCreate() {
   };
 
   const handleCreateTour = () => {
-    if (!tourLength) return;
+    if (!canCreateTour) return;
     setNotificationMessage(null);
     
     const minutes = parseInt(tourLength);
@@ -607,7 +607,18 @@ export default function TourCreate() {
     return Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
   };
 
-  const canCreateTour = tourLength !== '';
+  const canCreateTour = useMemo(() => {
+    // If no tour length is selected, we can't create a tour
+    if (!tourLength) return false;
+
+    // If using "Surprise Me" for either artists or street art, we can create a tour
+    if (selectedArtists.has(SURPRISE_ME) || selectedStreetArt.has(SURPRISE_ME)) {
+      return true;
+    }
+
+    // Otherwise, we need at least one selected location
+    return selectedLocations.length > 0;
+  }, [tourLength, selectedArtists, selectedStreetArt, selectedLocations]);
 
   if (loadingNeighborhoods || loadingArtists || loadingStreetArt) {
     return <div className="container mx-auto p-4">Loading...</div>;
