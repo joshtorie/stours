@@ -642,65 +642,78 @@ export default function YourTour() {
                 </button>
               </div>
               <div className="space-y-4">
-                {leg.steps.map((step, index) => (
-                  <Step
-                    key={index}
-                    step={step}
-                    index={index}
-                    isCurrentStep={currentStepIndex === index}
-                    artLocation={tour.locations.find((location) => {
-                      const stepPath = step.path?.[0];
-                      if (!stepPath || !window.google?.maps) return false;
+                {leg.steps.map((step, index) => {
+                  // Find art location near this step
+                  const nearbyArt = tour.locations.find((location) => {
+                    if (!step.start_location || !window.google?.maps) return false;
 
-                      // Convert to LatLng if needed
-                      const stepLatLng = stepPath instanceof window.google.maps.LatLng
-                        ? stepPath
-                        : new window.google.maps.LatLng(
-                            typeof stepPath.lat === 'function' ? stepPath.lat() : stepPath.lat,
-                            typeof stepPath.lng === 'function' ? stepPath.lng() : stepPath.lng
-                          );
+                    const stepLatLng = step.start_location instanceof google.maps.LatLng
+                      ? step.start_location
+                      : new google.maps.LatLng(
+                          typeof step.start_location.lat === 'function' 
+                            ? step.start_location.lat() 
+                            : step.start_location.lat,
+                          typeof step.start_location.lng === 'function'
+                            ? step.start_location.lng()
+                            : step.start_location.lng
+                        );
 
-                      const locationLatLng = new window.google.maps.LatLng(
-                        location.coordinates.lat,
-                        location.coordinates.lng
-                      );
+                    const locationLatLng = new google.maps.LatLng(
+                      location.coordinates.lat,
+                      location.coordinates.lng
+                    );
 
-                      const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
-                        stepLatLng,
-                        locationLatLng
-                      );
+                    const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
+                      stepLatLng,
+                      locationLatLng
+                    );
 
-                      return distance < 50;
-                    })}
-                    artLocationIndex={tour.locations.findIndex((location) => {
-                      const stepPath = step.path?.[0];
-                      if (!stepPath || !window.google?.maps) return -1;
+                    // Increased distance threshold to 100 meters
+                    return distance < 100;
+                  });
 
-                      // Convert to LatLng if needed
-                      const stepLatLng = stepPath instanceof window.google.maps.LatLng
-                        ? stepPath
-                        : new window.google.maps.LatLng(
-                            typeof stepPath.lat === 'function' ? stepPath.lat() : stepPath.lat,
-                            typeof stepPath.lng === 'function' ? stepPath.lng() : stepPath.lng
-                          );
+                  const artIndex = tour.locations.findIndex((location) => {
+                    if (!step.start_location || !window.google?.maps) return false;
 
-                      const locationLatLng = new window.google.maps.LatLng(
-                        location.coordinates.lat,
-                        location.coordinates.lng
-                      );
+                    const stepLatLng = step.start_location instanceof google.maps.LatLng
+                      ? step.start_location
+                      : new google.maps.LatLng(
+                          typeof step.start_location.lat === 'function' 
+                            ? step.start_location.lat() 
+                            : step.start_location.lat,
+                          typeof step.start_location.lng === 'function'
+                            ? step.start_location.lng()
+                            : step.start_location.lng
+                        );
 
-                      const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
-                        stepLatLng,
-                        locationLatLng
-                      );
+                    const locationLatLng = new google.maps.LatLng(
+                      location.coordinates.lat,
+                      location.coordinates.lng
+                    );
 
-                      return distance < 50;
-                    })}
-                    maximizedArtCard={maximizedArtCard}
-                    onArtCardClick={handleArtCardClick}
-                    onARClick={handleARClick}
-                  />
-                ))}
+                    const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
+                      stepLatLng,
+                      locationLatLng
+                    );
+
+                    // Increased distance threshold to 100 meters
+                    return distance < 100;
+                  });
+
+                  return (
+                    <Step
+                      key={index}
+                      step={step}
+                      index={index}
+                      isCurrentStep={currentStepIndex === index}
+                      artLocation={nearbyArt}
+                      artLocationIndex={artIndex}
+                      maximizedArtCard={maximizedArtCard}
+                      onArtCardClick={handleArtCardClick}
+                      onARClick={handleARClick}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>
