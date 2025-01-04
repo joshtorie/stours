@@ -73,15 +73,20 @@ export default function YourTour() {
     }
 
     let watchId: number;
+    let timeoutId: number;
     const cleanup = () => {
       if (watchId) {
         navigator.geolocation.clearWatch(watchId);
-        setLocationError(null);
       }
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      setLocationError(null);
     };
 
     if ('geolocation' in navigator) {
-      watchId = navigator.geolocation.watchPosition(
+      // First try to get a single position
+      navigator.geolocation.getCurrentPosition(
         (position) => {
           try {
             if (!window.google?.maps) {
@@ -93,19 +98,54 @@ export default function YourTour() {
             );
             setUserLocation(newLocation);
             setLocationError(null);
+
+            // After getting initial position, start watching
+            watchId = navigator.geolocation.watchPosition(
+              (position) => {
+                try {
+                  if (!window.google?.maps) {
+                    throw new Error('Google Maps not loaded');
+                  }
+                  const newLocation = new window.google.maps.LatLng(
+                    position.coords.latitude,
+                    position.coords.longitude
+                  );
+                  setUserLocation(newLocation);
+                  setLocationError(null);
+                } catch (error) {
+                  console.error('Error creating location:', error);
+                }
+              },
+              (error) => {
+                console.error('Location watch error:', error);
+              },
+              {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 30000
+              }
+            );
           } catch (error) {
-            console.error('Error creating location:', error);
-            setLocationError({ message: 'Failed to create location object' });
+            console.error('Error creating initial location:', error);
           }
         },
         (error) => {
-          console.error('Location error:', error);
-          setLocationError({ message: error.message });
+          console.error('Initial location error:', error);
+          // Only show the error message after a delay
+          timeoutId = window.setTimeout(() => {
+            if (!userLocation) {
+              setLocationError({ 
+                message: error.code === 1 
+                  ? 'Please enable location access in your browser settings to use navigation.'
+                  : 'Unable to get your location. Please try again.'
+              });
+            }
+          }, 10000); // Wait 10 seconds before showing error
         },
         {
           enableHighAccuracy: true,
           maximumAge: 0,
-          timeout: 5000
+          timeout: 30000 // Increased timeout to 30 seconds
         }
       );
     } else {
