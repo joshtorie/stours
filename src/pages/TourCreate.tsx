@@ -18,6 +18,10 @@ interface SelectedLocation {
     lat: number;
     lng: number;
   };
+  imageUrl: string;
+  shopUrl: string;
+  arEnabled: boolean;
+  arContent: string;
 }
 
 interface TourVariation {
@@ -177,7 +181,11 @@ export default function TourCreate() {
               coordinates: {
                 lat: artwork.latitude,
                 lng: artwork.longitude
-              }
+              },
+              imageUrl: artwork.image || '',
+              shopUrl: artwork.shop_url,
+              arEnabled: artwork.ar_enabled,
+              arContent: artwork.ar_content
             };
           }
           return null;
@@ -517,7 +525,11 @@ export default function TourCreate() {
         coordinates: {
           lat: artwork.latitude,
           lng: artwork.longitude
-        }
+        },
+        imageUrl: artwork.image || '',
+        shopUrl: artwork.shop_url,
+        arEnabled: artwork.ar_enabled,
+        arContent: artwork.ar_content
       };
     });
   };
@@ -545,7 +557,11 @@ export default function TourCreate() {
         coordinates: {
           lat: artwork.latitude,
           lng: artwork.longitude
-        }
+        },
+        imageUrl: artwork.image || '',
+        shopUrl: artwork.shop_url,
+        arEnabled: artwork.ar_enabled,
+        arContent: artwork.ar_content
       };
     });
   };
@@ -573,7 +589,11 @@ export default function TourCreate() {
         coordinates: {
           lat: artwork.latitude,
           lng: artwork.longitude
-        }
+        },
+        imageUrl: artwork.image || '',
+        shopUrl: artwork.shop_url,
+        arEnabled: artwork.ar_enabled,
+        arContent: artwork.ar_content
       };
     });
   };

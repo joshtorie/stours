@@ -25,6 +25,10 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
             neighborhoods!inner(
               id,
               city_id
+            ),
+            artists!inner(
+              id,
+              name
             )
           `)
           .order('created_at', { ascending: false });
@@ -39,10 +43,23 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
           query = query.eq('neighborhoods.city_id', options.cityId);
         }
 
-        const { data, error } = await query;
+        const { data, error: queryError } = await query;
 
-        if (error) throw error;
-        setStreetArt(data);
+        if (queryError) throw queryError;
+        
+        // Transform data to include full image URLs
+        const transformedData = data?.map(art => ({
+          ...art,
+          image: art.image ? `${supabase.storageUrl}/object/public/street_art_images/${art.image}` : null,
+          ar_content: art.ar_content ? {
+            modelUrl: `${supabase.storageUrl}/object/public/ar_models/${art.ar_content.modelUrl}`,
+            imageUrl: art.ar_content.imageUrl ? `${supabase.storageUrl}/object/public/ar_previews/${art.ar_content.imageUrl}` : null,
+            iosQuickLook: art.ar_content.iosQuickLook ? `${supabase.storageUrl}/object/public/ar_models/${art.ar_content.iosQuickLook}` : null,
+            markerImage: art.ar_content.markerImage ? `${supabase.storageUrl}/object/public/ar_markers/${art.ar_content.markerImage}` : null
+          } : null
+        })) || [];
+
+        setStreetArt(transformedData);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
