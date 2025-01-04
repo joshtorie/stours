@@ -681,6 +681,10 @@ export default function YourTour() {
                     const artMatch = tour.locations.find((location) => {
                       if (!step.end_location || !location.coordinates) return false;
                       
+                      // Check if this is the last step of the leg
+                      const isLastStep = stepIndex === leg.steps.length - 1;
+                      if (!isLastStep) return false; // Only show art at destination steps
+                      
                       const stepLatLng = new google.maps.LatLng(
                         step.end_location.lat,
                         step.end_location.lng
@@ -695,7 +699,7 @@ export default function YourTour() {
                         locationLatLng
                       );
 
-                      return distance < 20; // 20 meters threshold
+                      return distance < 50; // 50 meters threshold for destination matching
                     });
 
                     const artIndex = artMatch ? tour.locations.indexOf(artMatch) : -1;
@@ -911,7 +915,7 @@ function Step({
                   }`}
                 />
                 {isMaximized && (
-                  <div className="absolute bottom-4 right-4 flex space-x-2">
+                  <div className="absolute bottom-4 right-2 flex space-x-2">
                     {artLocation.arContent && (
                       <button
                         onClick={(e) => {
