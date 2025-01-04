@@ -156,44 +156,33 @@ export default function YourTour() {
   }, [isGoogleLoaded]);
 
   React.useEffect(() => {
-    if (location.state?.selectedRoute) {
+    if (!location.state?.selectedRoute) {
+      // Try to load from localStorage
+      const savedTour = localStorage.getItem('currentTour');
+      if (savedTour) {
+        try {
+          const parsedTour = JSON.parse(savedTour);
+          setTour(parsedTour);
+          setDuration(parsedTour.duration || 0);
+        } catch (e) {
+          console.error('Error parsing saved tour:', e);
+          setError({ message: 'Failed to load saved tour' });
+        }
+      } else {
+        setError({ message: 'No tour selected' });
+      }
+    } else {
       const { selectedRoute, duration: tourDuration } = location.state;
       console.log('Setting tour from location state:', selectedRoute);
       setTour(selectedRoute);
-      setDuration(tourDuration || 0);
-      // Save to storage
-      try {
-        localStorage.setItem('currentTour', JSON.stringify({
-          selectedRoute,
-          duration: tourDuration || 0,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        console.error('Error saving tour to storage:', error);
-      }
-    } else {
-      // Try to load from storage
-      const stored = localStorage.getItem('currentTour');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
-            console.log('Loading tour from storage:', parsed);
-            setTour(parsed.selectedRoute);
-            setDuration(parsed.duration);
-          } else {
-            localStorage.removeItem('currentTour');
-            navigate('/');
-          }
-        } catch (error) {
-          console.error('Error loading stored tour:', error);
-          navigate('/');
-        }
-      } else {
-        navigate('/');
-      }
+      setDuration(tourDuration);
+      // Save to localStorage
+      localStorage.setItem('currentTour', JSON.stringify({
+        ...selectedRoute,
+        duration: tourDuration
+      }));
     }
-  }, [location.state, navigate]);
+  }, [location.state]);
 
   React.useEffect(() => {
     if (!tour?.response || !isGoogleLoaded) return;
@@ -447,20 +436,21 @@ export default function YourTour() {
     if (!tour?.response) return null;
 
     try {
+      const result = toGoogleMapsDirectionsResult(tour.response);
+      console.log('Processed directions result:', result);
       return {
-        directions: toGoogleMapsDirectionsResult(tour.response),
-        suppressMarkers: false,
-        markerOptions: {
-          label: {
-            text: '',
-            color: 'white',
-            fontWeight: 'bold'
-          }
+        directions: result,
+        suppressMarkers: true,
+        preserveViewport: false,
+        polylineOptions: {
+          strokeColor: '#4285F4',
+          strokeWeight: 4,
+          strokeOpacity: 0.8
         }
       };
-    } catch (error) {
-      console.error('Error converting directions result:', error);
-      setMapsError({ message: 'Failed to convert directions result' });
+    } catch (e) {
+      console.error('Error processing directions:', e);
+      setMapsError({ message: 'Failed to process directions' });
       return null;
     }
   }, [tour?.response]);
@@ -685,17 +675,17 @@ export default function YourTour() {
                 {leg.steps.map((step, index) => {
                   // Find art location near this step
                   const nearbyArt = tour.locations.find((location) => {
-                    if (!step.start_location || !window.google?.maps) return false;
+                    if (!step.end_location || !window.google?.maps) return false;
 
-                    const stepLatLng = step.start_location instanceof google.maps.LatLng
-                      ? step.start_location
+                    const stepLatLng = step.end_location instanceof google.maps.LatLng
+                      ? step.end_location
                       : new google.maps.LatLng(
-                          typeof step.start_location.lat === 'function' 
-                            ? step.start_location.lat() 
-                            : step.start_location.lat,
-                          typeof step.start_location.lng === 'function'
-                            ? step.start_location.lng()
-                            : step.start_location.lng
+                          typeof step.end_location.lat === 'function' 
+                            ? step.end_location.lat() 
+                            : step.end_location.lat,
+                          typeof step.end_location.lng === 'function'
+                            ? step.end_location.lng()
+                            : step.end_location.lng
                         );
 
                     const locationLatLng = new google.maps.LatLng(
@@ -708,22 +698,22 @@ export default function YourTour() {
                       locationLatLng
                     );
 
-                    // Increased distance threshold to 100 meters
-                    return distance < 100;
+                    // Only show art when we're at its exact location
+                    return distance < 10; // 10 meters threshold
                   });
 
                   const artIndex = tour.locations.findIndex((location) => {
-                    if (!step.start_location || !window.google?.maps) return false;
+                    if (!step.end_location || !window.google?.maps) return false;
 
-                    const stepLatLng = step.start_location instanceof google.maps.LatLng
-                      ? step.start_location
+                    const stepLatLng = step.end_location instanceof google.maps.LatLng
+                      ? step.end_location
                       : new google.maps.LatLng(
-                          typeof step.start_location.lat === 'function' 
-                            ? step.start_location.lat() 
-                            : step.start_location.lat,
-                          typeof step.start_location.lng === 'function'
-                            ? step.start_location.lng()
-                            : step.start_location.lng
+                          typeof step.end_location.lat === 'function' 
+                            ? step.end_location.lat() 
+                            : step.end_location.lat,
+                          typeof step.end_location.lng === 'function'
+                            ? step.end_location.lng()
+                            : step.end_location.lng
                         );
 
                     const locationLatLng = new google.maps.LatLng(
@@ -736,8 +726,8 @@ export default function YourTour() {
                       locationLatLng
                     );
 
-                    // Increased distance threshold to 100 meters
-                    return distance < 100;
+                    // Only show art when we're at its exact location
+                    return distance < 10; // 10 meters threshold
                   });
 
                   return (
@@ -749,7 +739,10 @@ export default function YourTour() {
                       artLocation={nearbyArt}
                       artLocationIndex={artIndex}
                       maximizedArtCard={maximizedArtCard}
-                      onArtCardClick={handleArtCardClick}
+                      onArtCardClick={(idx) => {
+                        // Only maximize/minimize the clicked card
+                        setMaximizedArtCard(idx === maximizedArtCard ? null : idx);
+                      }}
                       onARClick={handleARClick}
                     />
                   );
