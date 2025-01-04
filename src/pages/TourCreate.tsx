@@ -63,15 +63,40 @@ export default function TourCreate() {
 
   // Get street art based on selections
   const filteredStreetArt = useMemo(() => {
-    if (!neighborhood) return [];
+    if (!neighborhood || !allStreetArt || allStreetArt.length === 0) return [];
     
-    const artworks = selectedArtists.has(SURPRISE_ME)
-      ? allStreetArt
-      : selectedArtists.size > 0
-        ? allStreetArt.filter(art => selectedArtists.has(art.artist_id))
-        : [];
-    
-    return [{ id: SURPRISE_ME, title: 'Surprise Me!', artist_id: '', neighborhood_id: '', image: 'https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg', latitude: 0, longitude: 0 }, ...artworks];
+    let artworks = allStreetArt;
+
+    // Filter by selected artists if not using surprise me
+    if (selectedArtists.size > 0 && !selectedArtists.has(SURPRISE_ME)) {
+      artworks = allStreetArt.filter(art => selectedArtists.has(art.artist_id));
+    }
+
+    // Ensure all artworks have valid coordinates
+    artworks = artworks.filter(art => 
+      art.latitude != null && 
+      art.longitude != null && 
+      !isNaN(art.latitude) && 
+      !isNaN(art.longitude)
+    );
+
+    // Add surprise me option if needed
+    if (artworks.length > 0) {
+      return [
+        { 
+          id: SURPRISE_ME, 
+          title: 'Surprise Me!', 
+          artist_id: '', 
+          neighborhood_id: '', 
+          image: 'https://impgpcljswbjfzdpinjq.supabase.co/storage/v1/object/public/street_art_images/surprise%20me.jpeg', 
+          latitude: artworks[0].latitude, 
+          longitude: artworks[0].longitude 
+        }, 
+        ...artworks
+      ];
+    }
+
+    return [];
   }, [neighborhood, selectedArtists, allStreetArt]);
 
   const handleArtistSelect = (artistId: string) => {
@@ -470,62 +495,87 @@ export default function TourCreate() {
     return R * c; // Distance in meters
   };
 
-  const generateRandomLocations = (maxStops: number): SelectedLocation[] => {
-    // Get all available street art for the selected neighborhood
-    const availableArt = allStreetArt.filter(art => art.neighborhood_id === neighborhood);
-    
-    // Randomly select up to maxStops pieces
-    return shuffleArray(availableArt)
-      .slice(0, maxStops)
-      .map(art => ({
-        id: art.id,
-        title: art.title,
-        artist: art.artist_name,
+  const generateRandomLocations = (maxLocations: number): SelectedLocation[] => {
+    const validArtworks = allStreetArt.filter(art => 
+      art.latitude != null && 
+      art.longitude != null && 
+      !isNaN(art.latitude) && 
+      !isNaN(art.longitude)
+    );
+
+    if (validArtworks.length === 0) return [];
+
+    const shuffled = shuffleArray([...validArtworks]);
+    const selected = shuffled.slice(0, Math.min(maxLocations, shuffled.length));
+
+    return selected.map(artwork => {
+      const artist = allArtists.find(a => a.id === artwork.artist_id);
+      return {
+        id: artwork.id,
+        title: artwork.title || 'Untitled',
+        artist: artist?.name || 'Unknown Artist',
         coordinates: {
-          lat: art.latitude,
-          lng: art.longitude
+          lat: artwork.latitude,
+          lng: artwork.longitude
         }
-      }));
+      };
+    });
   };
 
-  const generateLocationsWithRandomArtists = (selectedArtIds: string[], maxStops: number): SelectedLocation[] => {
-    // Get all available street art for selected pieces
-    const selectedArt = allStreetArt.filter(art => 
-      art.neighborhood_id === neighborhood && 
-      selectedArtIds.includes(art.id)
+  const generateLocationsWithRandomArtists = (selectedArt: string[], maxLocations: number): SelectedLocation[] => {
+    const validArtworks = allStreetArt.filter(art => 
+      selectedArt.includes(art.id) &&
+      art.latitude != null && 
+      art.longitude != null && 
+      !isNaN(art.latitude) && 
+      !isNaN(art.longitude)
     );
-    
-    return shuffleArray(selectedArt)
-      .slice(0, maxStops)
-      .map(art => ({
-        id: art.id,
-        title: art.title,
-        artist: art.artist_name,
+
+    if (validArtworks.length === 0) return [];
+
+    const shuffled = shuffleArray([...validArtworks]);
+    const selected = shuffled.slice(0, Math.min(maxLocations, shuffled.length));
+
+    return selected.map(artwork => {
+      const artist = allArtists.find(a => a.id === artwork.artist_id);
+      return {
+        id: artwork.id,
+        title: artwork.title || 'Untitled',
+        artist: artist?.name || 'Unknown Artist',
         coordinates: {
-          lat: art.latitude,
-          lng: art.longitude
+          lat: artwork.latitude,
+          lng: artwork.longitude
         }
-      }));
+      };
+    });
   };
 
-  const generateLocationsWithRandomArt = (artistIds: string[], maxStops: number): SelectedLocation[] => {
-    // Get all available street art by selected artists
-    const availableArt = allStreetArt.filter(art => 
-      art.neighborhood_id === neighborhood && 
-      artistIds.includes(art.artist_id)
+  const generateLocationsWithRandomArt = (selectedArtistIds: string[], maxLocations: number): SelectedLocation[] => {
+    const validArtworks = allStreetArt.filter(art => 
+      selectedArtistIds.includes(art.artist_id) &&
+      art.latitude != null && 
+      art.longitude != null && 
+      !isNaN(art.latitude) && 
+      !isNaN(art.longitude)
     );
-    
-    return shuffleArray(availableArt)
-      .slice(0, maxStops)
-      .map(art => ({
-        id: art.id,
-        title: art.title,
-        artist: art.artist_name,
+
+    if (validArtworks.length === 0) return [];
+
+    const shuffled = shuffleArray([...validArtworks]);
+    const selected = shuffled.slice(0, Math.min(maxLocations, shuffled.length));
+
+    return selected.map(artwork => {
+      const artist = allArtists.find(a => a.id === artwork.artist_id);
+      return {
+        id: artwork.id,
+        title: artwork.title || 'Untitled',
+        artist: artist?.name || 'Unknown Artist',
         coordinates: {
-          lat: art.latitude,
-          lng: art.longitude
+          lat: artwork.latitude,
+          lng: artwork.longitude
         }
-      }));
+      };
+    });
   };
 
   const calculateMaxStops = (minutes: number) => {
