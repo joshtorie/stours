@@ -714,20 +714,9 @@ export default function TourCreate() {
           )}
         </div>
 
-        {/* Right Column - Selected Items & Tour Length */}
+        {/* Right Column - Tour Length */}
         <div className="bg-gray-50 p-6 rounded-lg space-y-6">
           <div>
-            {selectedLocations.length > 0 && !selectedStreetArt.has(SURPRISE_ME) && (
-              <div className="space-y-4 mb-6">
-                {selectedLocations.map((location, index) => (
-                  <div key={index} className="bg-white p-4 rounded-lg shadow-sm">
-                    <h3 className="font-medium">{location.title}</h3>
-                    <p className="text-gray-600 text-sm mt-1">by {location.artist}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {(selectedLocations.length > 0 || selectedStreetArt.size > 0) && (
               <div className="space-y-4">
                 <div>
