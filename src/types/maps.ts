@@ -3,8 +3,8 @@
  */
 
 export interface SerializableLatLng {
-  lat: number;
-  lng: number;
+  lat: number | (() => number);
+  lng: number | (() => number);
 }
 
 export interface SerializableBounds {
@@ -22,7 +22,7 @@ export interface SerializableDuration {
   value?: number;
 }
 
-export interface SerializableStep {
+export interface SerializableDirectionsStep {
   distance?: SerializableDistance;
   duration?: SerializableDuration;
   end_location: SerializableLatLng;
@@ -32,30 +32,30 @@ export interface SerializableStep {
   travel_mode: google.maps.TravelMode;
 }
 
-export interface SerializableLeg {
+export interface SerializableDirectionsLeg {
   distance?: SerializableDistance;
   duration?: SerializableDuration;
   end_address: string;
-  end_location: SerializableLatLng;
   start_address: string;
+  end_location: SerializableLatLng;
   start_location: SerializableLatLng;
-  steps: SerializableStep[];
+  steps: SerializableDirectionsStep[];
   via_waypoints?: SerializableLatLng[];
 }
 
-export interface SerializableRoute {
+export interface SerializableDirectionsRoute {
   bounds: SerializableBounds;
   copyrights: string;
-  legs: SerializableLeg[];
+  legs: SerializableDirectionsLeg[];
   overview_path?: SerializableLatLng[];
+  overview_polyline: string | { points: string };
   warnings: string[];
   waypoint_order: number[];
-  overview_polyline: { points: string } | string;
   summary: string;
 }
 
 export interface SerializableDirectionsResult {
-  routes: SerializableRoute[];
+  routes: SerializableDirectionsRoute[];
   request: google.maps.DirectionsRequest | null;
   geocoded_waypoints: google.maps.DirectionsGeocodedWaypoint[];
 }
@@ -86,8 +86,8 @@ export function toSerializableBounds(bounds: google.maps.LatLngBounds): Serializ
 export function isSerializableLatLng(obj: any): obj is SerializableLatLng {
   return (
     obj &&
-    typeof obj.lat === 'number' &&
-    typeof obj.lng === 'number'
+    (typeof obj.lat === 'number' || typeof obj.lat === 'function') &&
+    (typeof obj.lng === 'number' || typeof obj.lng === 'function')
   );
 }
 
@@ -236,7 +236,7 @@ export function toGoogleMapsBounds(bounds: SerializableBounds): google.maps.LatL
   );
 }
 
-export function toGoogleMapsRoute(route: SerializableRoute): google.maps.DirectionsRoute {
+export function toGoogleMapsRoute(route: SerializableDirectionsRoute): google.maps.DirectionsRoute {
   if (!window.google?.maps) {
     throw new Error('Google Maps not loaded');
   }

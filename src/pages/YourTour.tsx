@@ -679,13 +679,12 @@ export default function YourTour() {
 
                     // Find art location that matches this step's end location
                     const artMatch = tour.locations.find((location) => {
-                      if (!step.end_location || !window.google?.maps) return false;
-
+                      if (!step.end_location || !location.coordinates) return false;
+                      
                       const stepLatLng = new google.maps.LatLng(
-                        step.end_location.lat(),
-                        step.end_location.lng()
+                        step.end_location.lat,
+                        step.end_location.lng
                       );
-
                       const locationLatLng = new google.maps.LatLng(
                         location.coordinates.lat,
                         location.coordinates.lng
@@ -923,7 +922,7 @@ function Step({
                       >
                         <span className="sr-only">View in AR</span>
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                       </button>
                     )}
