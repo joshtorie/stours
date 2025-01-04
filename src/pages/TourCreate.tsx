@@ -163,49 +163,35 @@ export default function TourCreate() {
       }
       return next;
     });
-  };
 
-  const handleArtworkSelect = () => {
-    if (selectedStreetArt.size === 0) return;
+    // Update selectedLocations immediately when street art is selected
+    const selectedArt = Array.from(selectedStreetArt);
+    const newLocations = selectedArt
+      .filter(id => id !== SURPRISE_ME)
+      .map(artId => {
+        const artwork = allStreetArt.find(art => art.id === artId);
+        const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
+        
+        if (artwork && selectedArtist) {
+          return {
+            id: artwork.id,
+            title: artwork.title || 'Untitled',
+            artist: selectedArtist.name,
+            coordinates: {
+              lat: artwork.latitude,
+              lng: artwork.longitude
+            },
+            imageUrl: artwork.image || '',
+            shopUrl: artwork.shop_url,
+            arEnabled: artwork.ar_enabled,
+            arContent: artwork.ar_content
+          };
+        }
+        return null;
+      })
+      .filter((loc): loc is SelectedLocation => loc !== null);
 
-    if (selectedStreetArt.has(SURPRISE_ME)) {
-      // Don't add anything yet, wait for tour length selection
-      setSelectedLocations([]);
-    } else {
-      const newLocations = Array.from(selectedStreetArt)
-        .map(artId => {
-          const artwork = allStreetArt.find(art => art.id === artId);
-          const selectedArtist = allArtists.find(a => a.id === artwork?.artist_id);
-          
-          if (artwork && selectedArtist) {
-            return {
-              id: artwork.id,
-              title: artwork.title || 'Untitled',
-              artist: selectedArtist.name,
-              coordinates: {
-                lat: artwork.latitude,
-                lng: artwork.longitude
-              },
-              imageUrl: artwork.image || '',
-              shopUrl: artwork.shop_url,
-              arEnabled: artwork.ar_enabled,
-              arContent: artwork.ar_content
-            };
-          }
-          return null;
-        })
-        .filter((loc): loc is SelectedLocation => loc !== null);
-
-      console.log('Selected locations:', newLocations);
-      setSelectedLocations(newLocations);
-    }
-    
-    // Reset selections for next artwork if not using surprise me
-    if (!selectedStreetArt.has(SURPRISE_ME)) {
-      setNeighborhood('');
-      setSelectedArtists(new Set());
-      setSelectedStreetArt(new Set());
-    }
+    setSelectedLocations(newLocations);
   };
 
   const handleCreateTour = () => {
@@ -607,16 +593,20 @@ export default function TourCreate() {
     return Math.floor(minutes / (MINUTES_PER_STOP * 2)); // Half the time for walking
   };
 
+  // Memoized canCreateTour calculation
   const canCreateTour = useMemo(() => {
     // Must have a tour length selected
     if (!tourLength) return false;
 
-    // Must have either selected locations or "Surprise Me" selected
-    if (selectedStreetArt.has(SURPRISE_ME)) return true;
-    if (selectedLocations.length > 0) return true;
+    // Must have a neighborhood selected
+    if (!neighborhood) return false;
 
-    return false;
-  }, [tourLength, selectedStreetArt, selectedLocations]);
+    // Must have either "Surprise Me" selected or specific locations
+    const hasSurpriseMe = selectedStreetArt.has(SURPRISE_ME);
+    const hasSpecificLocations = selectedStreetArt.size > 0 || selectedLocations.length > 0;
+
+    return hasSurpriseMe || hasSpecificLocations;
+  }, [tourLength, neighborhood, selectedStreetArt, selectedLocations]);
 
   if (loadingNeighborhoods || loadingArtists || loadingStreetArt) {
     return <div className="container mx-auto p-4">Loading...</div>;
@@ -765,14 +755,26 @@ export default function TourCreate() {
                   disabled={!canCreateTour}
                   className={`
                     w-full py-3 px-6 rounded-lg font-semibold text-white
-                    transition-all duration-200
+                    transition-all duration-200 relative
                     ${canCreateTour
                       ? 'bg-blue-500 hover:bg-blue-600 transform hover:scale-105'
                       : 'bg-gray-300 cursor-not-allowed'
                     }
                   `}
                 >
-                  Create My Tour
+                  {canCreateTour ? (
+                    'Create My Tour'
+                  ) : (
+                    <>
+                      Create My Tour
+                      <span className="block text-xs mt-1 opacity-75">
+                        {!neighborhood ? 'Select a neighborhood' :
+                         !tourLength ? 'Select tour length' :
+                         !(selectedStreetArt.size > 0) ? 'Select street art' :
+                         'Complete all selections'}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             )}
