@@ -53,6 +53,7 @@ export default function YourTour() {
   const [selectedArtwork, setSelectedArtwork] = React.useState<ArtLocation | null>(null);
   const [selectedMarker, setSelectedMarker] = React.useState<ArtLocation | null>(null);
   const [isArtStopsExpanded, setIsArtStopsExpanded] = React.useState(false);
+  const [startTime, setStartTime] = React.useState<number | null>(null);
 
   // Location state
   const [userLocation, setUserLocation] = React.useState<google.maps.LatLng | null>(null);
@@ -208,6 +209,13 @@ export default function YourTour() {
       console.error('Error saving tour state:', error);
     }
   }, [tour, duration, isGoogleLoaded]);
+
+  // Add startTime when tour starts
+  React.useEffect(() => {
+    if (tour && !startTime) {
+      setStartTime(Date.now());
+    }
+  }, [tour, startTime]);
 
   // Custom hooks
   function useUserLocation(isGoogleLoaded: boolean) {
@@ -528,11 +536,15 @@ export default function YourTour() {
   };
 
   const handleCompleteTour = () => {
-    const stepsWalked = currentStepIndex; // Assuming this is the number of steps walked
-    const duration = Math.floor((Date.now() - startTime) / 60000); // Calculate duration in minutes
-    const streetArtViewed = tour.locations; // Assuming this contains the street art viewed
+    if (startTime) {
+      const stepsWalked = currentStepIndex;
+      const duration = Math.floor((Date.now() - startTime) / 60000); // Duration in minutes
+      const streetArtViewed = tour.locations;
 
-    navigate('/tourcomplete', { state: { stepsWalked, duration, streetArtViewed } });
+      navigate('/tourcomplete', { state: { stepsWalked, duration, streetArtViewed } });
+    } else {
+      console.error('Start time is not defined.');
+    }
   };
 
   return (
