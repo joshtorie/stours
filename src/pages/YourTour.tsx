@@ -520,6 +520,10 @@ export default function YourTour() {
     }
   };
 
+  const handleCompleteTour = () => {
+    navigate('/tourcomplete'); // Navigate to the TourComplete page
+  };
+
   return (
     <GoogleMapsWrapper>
       <div className="container mx-auto p-4">
@@ -661,11 +665,7 @@ export default function YourTour() {
                   {isPaused ? 'Resume Tour' : 'Pause Tour'}
                 </button>
                 <button
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to complete this tour?')) {
-                      navigate('/');
-                    }
-                  }}
+                  onClick={handleCompleteTour}
                   className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
                 >
                   Complete Tour
