@@ -11,6 +11,7 @@ import TourCreate from './pages/TourCreate';
 import TourOptions from './pages/TourOptions';
 import TourPage from './pages/TourPage';
 import YourTour from './pages/YourTour';
+import TourComplete from './pages/TourComplete';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/tour-options" element={<TourOptions />} />
           <Route path="/tour-page" element={<TourPage />} />
           <Route path="/your-tour" element={<YourTour />} />
+          <Route path="/tourcomplete" element={<TourComplete />} />
         </Routes>
       </div>
     </Router>
