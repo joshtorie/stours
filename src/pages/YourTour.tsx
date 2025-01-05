@@ -438,6 +438,13 @@ export default function YourTour() {
     try {
       const result = toGoogleMapsDirectionsResult(tour.response);
       console.log('Processed directions result:', result);
+      if (result.routes && result.routes.length > 0) {
+        console.log('Directions response:', result);
+        const travelMode = result.routes[0].legs[0].steps[0].travel_mode; // Example access
+      } else {
+        console.error('Directions response is not valid:', result);
+        setError({ message: 'Failed to load directions. Please try again.' });
+      }
       return {
         directions: result,
         suppressMarkers: true,
@@ -521,7 +528,11 @@ export default function YourTour() {
   };
 
   const handleCompleteTour = () => {
-    navigate('/tourcomplete'); // Navigate to the TourComplete page
+    const stepsWalked = currentStepIndex; // Assuming this is the number of steps walked
+    const duration = Math.floor((Date.now() - startTime) / 60000); // Calculate duration in minutes
+    const streetArtViewed = tour.locations; // Assuming this contains the street art viewed
+
+    navigate('/tourcomplete', { state: { stepsWalked, duration, streetArtViewed } });
   };
 
   return (
