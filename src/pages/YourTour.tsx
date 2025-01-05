@@ -655,22 +655,6 @@ export default function YourTour() {
           <div className="p-4">
             <div>
               <h2 className="text-xl font-semibold mb-4">Walking Directions</h2>
-              <div className="flex justify-end mb-4 space-x-4">
-                <button
-                  onClick={() => setIsPaused(!isPaused)}
-                  className={`px-4 py-2 rounded-lg ${
-                    isPaused ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'
-                  } text-white`}
-                >
-                  {isPaused ? 'Resume Tour' : 'Pause Tour'}
-                </button>
-                <button
-                  onClick={handleCompleteTour}
-                  className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Complete Tour
-                </button>
-              </div>
               <div className="space-y-4">
                 {tour.response.routes[0].legs.flatMap((leg, legIndex) =>
                   leg.steps.map((step, stepIndex) => {
@@ -722,6 +706,9 @@ export default function YourTour() {
                   })
                 )}
               </div>
+              <button onClick={handleCompleteTour} className="mt-4 bg-blue-500 text-white py-2 px-4 rounded">
+                Complete Tour
+              </button>
             </div>
           </div>
 
