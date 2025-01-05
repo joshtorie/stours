@@ -53,7 +53,11 @@ export function StreetArtForm() {
       latitude: 0,
       longitude: 0,
       ar_enabled: false,
-      ar_content: null
+      ar_content: {
+        modelUrl: '',
+        imageUrl: '',
+        iosQuickLook: ''
+      }
     }
   });
 
@@ -221,164 +225,121 @@ export function StreetArtForm() {
       </div>
       
       {/* AR Support Section */}
-      <div className="space-y-4 p-4 border rounded-lg">
-        <div className="flex items-center">
+      <div className="border-t pt-6 mt-6">
+        <h3 className="text-lg font-medium mb-4">AR Experience</h3>
+        
+        <div className="flex items-center mb-4">
           <input
             type="checkbox"
             id="ar_enabled"
             name="ar_enabled"
             checked={formData.ar_enabled}
-            onChange={handleChange}
+            onChange={(e) => {
+              handleChange({
+                target: {
+                  name: 'ar_enabled',
+                  value: e.target.checked
+                }
+              });
+              if (!e.target.checked) {
+                handleChange({
+                  target: {
+                    name: 'ar_content',
+                    value: null
+                  }
+                });
+              } else {
+                handleChange({
+                  target: {
+                    name: 'ar_content',
+                    value: {
+                      modelUrl: '',
+                      imageUrl: '',
+                      iosQuickLook: ''
+                    }
+                  }
+                });
+              }
+            }}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
           <label htmlFor="ar_enabled" className="ml-2 block text-sm text-gray-900">
             Enable AR Experience
           </label>
         </div>
-        
+
         {formData.ar_enabled && (
-          <div className="space-y-4 mt-4">
-            {/* AR Error Display */}
-            {arError && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-md">
-                {arError.message}
-              </div>
-            )}
-
-            {/* 3D Model Upload */}
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">3D Model (GLB/GLTF)</label>
+              <label htmlFor="modelUrl" className="block text-sm font-medium text-gray-700">
+                3D Model URL (GLB/GLTF)
+              </label>
               <input
-                ref={modelFileRef}
-                type="file"
-                accept=".glb,.gltf"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const modelUrl = await uploadARFile(file, 'street_art_models', 'model');
-                    if (modelUrl) {
-                      handleChange({
-                        target: {
-                          name: 'ar_content',
-                          value: {
-                            ...formData.ar_content,
-                            modelUrl
-                          }
-                        }
-                      });
+                type="text"
+                id="modelUrl"
+                value={formData.ar_content?.modelUrl || ''}
+                onChange={(e) => 
+                  handleChange({
+                    target: {
+                      name: 'ar_content',
+                      value: {
+                        ...formData.ar_content,
+                        modelUrl: e.target.value
+                      }
                     }
-                  }
-                }}
-                className="mt-1 block w-full text-sm text-gray-500
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-md file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100"
+                  })
+                }
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                required={formData.ar_enabled}
               />
-              <p className="mt-1 text-sm text-gray-500">
-                Supported formats: GLB, GLTF. Max size: 50MB
-              </p>
             </div>
 
-            {/* iOS Model Upload */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">iOS Model (USDZ)</label>
+              <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700">
+                AR Preview Image URL
+              </label>
               <input
-                ref={iosModelFileRef}
-                type="file"
-                accept=".usdz"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const iosUrl = await uploadARFile(file, 'street_art_models_ios', 'model');
-                    if (iosUrl) {
-                      handleChange({
-                        target: {
-                          name: 'ar_content',
-                          value: {
-                            ...formData.ar_content,
-                            iosQuickLook: iosUrl
-                          }
-                        }
-                      });
+                type="text"
+                id="imageUrl"
+                value={formData.ar_content?.imageUrl || ''}
+                onChange={(e) => 
+                  handleChange({
+                    target: {
+                      name: 'ar_content',
+                      value: {
+                        ...formData.ar_content,
+                        imageUrl: e.target.value
+                      }
                     }
-                  }
-                }}
-                className="mt-1 block w-full text-sm text-gray-500
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-md file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100"
+                  })
+                }
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                required={formData.ar_enabled}
               />
-              <p className="mt-1 text-sm text-gray-500">
-                Supported format: USDZ. Max size: 50MB
-              </p>
             </div>
 
-            {/* AR Preview Image */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">AR Preview Image</label>
+              <label htmlFor="iosQuickLook" className="block text-sm font-medium text-gray-700">
+                iOS Quick Look URL (USDZ) - Optional
+              </label>
               <input
-                ref={arPreviewFileRef}
-                type="file"
-                accept="image/*"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      setArPreviewUrl(reader.result as string);
-                    };
-                    reader.readAsDataURL(file);
-                    
-                    const imageUrl = await uploadARFile(file, 'street_art_ar_previews', 'preview');
-                    if (imageUrl) {
-                      handleChange({
-                        target: {
-                          name: 'ar_content',
-                          value: {
-                            ...formData.ar_content,
-                            imageUrl
-                          }
-                        }
-                      });
+                type="text"
+                id="iosQuickLook"
+                value={formData.ar_content?.iosQuickLook || ''}
+                onChange={(e) => 
+                  handleChange({
+                    target: {
+                      name: 'ar_content',
+                      value: {
+                        ...formData.ar_content,
+                        iosQuickLook: e.target.value
+                      }
                     }
-                  }
-                }}
-                className="mt-1 block w-full text-sm text-gray-500
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-md file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100"
+                  })
+                }
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               />
-              <p className="mt-1 text-sm text-gray-500">
-                Supported formats: JPG, PNG, WebP. Max size: 50MB
-              </p>
-              {arPreviewUrl && (
-                <img 
-                  src={arPreviewUrl} 
-                  alt="AR Preview" 
-                  className="mt-2 max-h-32 object-contain"
-                />
-              )}
             </div>
-
-            {/* Model Preview */}
-            {formData.ar_content?.modelUrl && (
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  3D Model Preview
-                </label>
-                <ModelPreview
-                  modelUrl={formData.ar_content.modelUrl}
-                  iosUrl={formData.ar_content.iosQuickLook}
-                  previewImage={formData.ar_content.imageUrl}
-                />
-              </div>
-            )}
           </div>
         )}
       </div>
