@@ -13,6 +13,7 @@ const UserProfile = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Step 1: Sign up the user with Supabase auth
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -26,24 +27,36 @@ const UserProfile = () => {
       if (signUpError) throw signUpError;
 
       if (user) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([{ 
-            id: user.id, 
-            username, 
-            email,
-            role: 'user',
-            created_at: new Date().toISOString()
-          }]);
-
-        if (insertError) throw insertError;
+        console.log('User created in auth:', user);
         
-        console.log('User signed up:', user);
+        // Step 2: Add the user to your users table
+        const { data: userData, error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: email,
+            username: username,
+            role: 'user',
+            created_at: new Date().toISOString(),
+            tours: [],
+            favorited_arts: [],
+            reviews: [],
+            added_street_arts: []
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error inserting user data:', insertError);
+          throw insertError;
+        }
+
+        console.log('User added to users table:', userData);
         navigate('/user-profile');
       }
     } catch (err) {
+      console.error('Error in sign up process:', err);
       setError(err.message);
-      console.error('Error signing up:', err);
     }
   };
 
