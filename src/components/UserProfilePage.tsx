@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../providers/AuthProvider';
 
 interface UserData {
   id: string;
@@ -15,31 +16,25 @@ interface UserData {
 
 const UserProfilePage = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // If auth is still loading, wait
+    if (authLoading) return;
+
+    // If no user after auth load, redirect to auth
+    if (!user) {
+      navigate('/auth', { replace: true });
+      return;
+    }
+
     const fetchUserData = async () => {
       try {
         setLoading(true);
         
-        // Get the current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        console.log('Current session:', session);
-
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          navigate('/auth');
-          return;
-        }
-
-        if (!session?.user) {
-          console.log('No active session, redirecting to auth');
-          navigate('/auth');
-          return;
-        }
-
         // Fetch user data from the users table
         const { data: userData, error: userError } = await supabase
           .from('users')
@@ -62,66 +57,41 @@ const UserProfilePage = () => {
               image
             )
           `)
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .single();
 
         if (userError) {
           console.error('Error fetching user data:', userError);
-          setError(userError.message);
-          navigate('/auth');
-          return;
+          throw userError;
         }
 
-        if (!userData) {
-          console.log('No user data found, redirecting to auth');
-          navigate('/auth');
-          return;
-        }
-
-        console.log('User data loaded:', userData);
         setUserData(userData);
-      } catch (err) {
-        console.error('Error in fetchUserData:', err);
-        setError(err.message || 'An error occurred');
-        navigate('/auth');
+      } catch (e) {
+        console.error('Error in profile page:', e);
+        setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserData();
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session);
-      if (!session) {
-        navigate('/auth');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [navigate]);
+  }, [user, authLoading, navigate]);
 
   const handleSignOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      navigate('/');
-    } catch (err) {
-      console.error('Error signing out:', err);
-      setError(err.message);
+      navigate('/', { replace: true });
+    } catch (e) {
+      console.error('Error signing out:', e);
+      setError(e instanceof Error ? e.message : 'An error occurred during sign out');
     }
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your profile...</p>
-        </div>
+        <p className="text-gray-500">Loading...</p>
       </div>
     );
   }
@@ -129,123 +99,83 @@ const UserProfilePage = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center text-red-600">
-          <p>Error loading profile: {error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!userData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">No user data found</p>
-        </div>
+        <p className="text-red-500">Error: {error}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        {/* Profile Header */}
-        <div className="bg-white shadow rounded-lg mb-6">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{userData.username}</h2>
-                <p className="text-sm text-gray-500">{userData.email}</p>
-                {userData.role === 'admin' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-2">
-                    Admin
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                Sign Out
-              </button>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+            <div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Profile Information</h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500">Personal details and activity.</p>
             </div>
+            <button
+              onClick={handleSignOut}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Sign Out
+            </button>
+          </div>
+          <div className="border-t border-gray-200">
+            <dl>
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">Username</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{userData?.username}</dd>
+              </div>
+              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">Email</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{userData?.email}</dd>
+              </div>
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">Role</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{userData?.role}</dd>
+              </div>
+            </dl>
           </div>
         </div>
 
-        {/* User Content Sections */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-2">
+        {/* Activity Sections */}
+        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
           {/* Tours */}
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-gray-900">Your Tours</h3>
-              {userData.tours.length > 0 ? (
-                <ul className="mt-4 divide-y divide-gray-200">
-                  {userData.tours.map((tour, index) => (
-                    <li key={index} className="py-4">
-                      {/* Add tour details here */}
-                      <p className="text-sm text-gray-600">{tour.name}</p>
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+            <div className="px-4 py-5 sm:px-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Your Tours</h3>
+            </div>
+            <div className="border-t border-gray-200">
+              {userData?.tours?.length === 0 ? (
+                <p className="p-4 text-gray-500">No tours created yet.</p>
+              ) : (
+                <ul className="divide-y divide-gray-200">
+                  {userData?.tours?.map((tour: any) => (
+                    <li key={tour.id} className="p-4">
+                      <p className="text-sm font-medium text-gray-900">{tour.name}</p>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="mt-4 text-sm text-gray-500">No tours created yet</p>
               )}
             </div>
           </div>
 
-          {/* Favorited Arts */}
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-gray-900">Favorited Street Art</h3>
-              {userData.favorited_arts.length > 0 ? (
-                <ul className="mt-4 divide-y divide-gray-200">
-                  {userData.favorited_arts.map((art, index) => (
-                    <li key={index} className="py-4">
-                      {/* Add art details here */}
-                      <p className="text-sm text-gray-600">{art.title}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm text-gray-500">No favorited street art yet</p>
-              )}
+          {/* Favorited Art */}
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+            <div className="px-4 py-5 sm:px-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Favorited Art</h3>
             </div>
-          </div>
-
-          {/* Reviews */}
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-gray-900">Your Reviews</h3>
-              {userData.reviews.length > 0 ? (
-                <ul className="mt-4 divide-y divide-gray-200">
-                  {userData.reviews.map((review, index) => (
-                    <li key={index} className="py-4">
-                      {/* Add review details here */}
-                      <p className="text-sm text-gray-600">{review.content}</p>
+            <div className="border-t border-gray-200">
+              {userData?.favorited_arts?.length === 0 ? (
+                <p className="p-4 text-gray-500">No favorited art yet.</p>
+              ) : (
+                <ul className="divide-y divide-gray-200">
+                  {userData?.favorited_arts?.map((art: any) => (
+                    <li key={art.id} className="p-4">
+                      <p className="text-sm font-medium text-gray-900">{art.title}</p>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="mt-4 text-sm text-gray-500">No reviews written yet</p>
-              )}
-            </div>
-          </div>
-
-          {/* Added Street Arts */}
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg font-medium text-gray-900">Added Street Art</h3>
-              {userData.added_street_arts.length > 0 ? (
-                <ul className="mt-4 divide-y divide-gray-200">
-                  {userData.added_street_arts.map((art, index) => (
-                    <li key={index} className="py-4">
-                      {/* Add art details here */}
-                      <p className="text-sm text-gray-600">{art.title}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm text-gray-500">No street art added yet</p>
               )}
             </div>
           </div>

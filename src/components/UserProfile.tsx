@@ -45,7 +45,7 @@ const UserProfile = () => {
           id: data.user.id,
           email: data.user.email,
           username: username || data.user.email?.split('@')[0],
-          password: password, // Add password field
+          password: password,
           role: 'user',
           tours: [],
           favorited_arts: [],
@@ -60,7 +60,7 @@ const UserProfile = () => {
       }
 
       console.log('Successfully created user account');
-      navigate('/profile');
+      navigate('/profile', { replace: true });
     } catch (err) {
       console.error('Error in sign up process:', err);
       setError(err.message || 'An error occurred during sign up');
@@ -110,7 +110,7 @@ const UserProfile = () => {
             id: data.user.id,
             email: data.user.email,
             username: data.user.email?.split('@')[0],
-            password: password, // Add password field
+            password: password,
             role: 'user',
             tours: [],
             favorited_arts: [],
@@ -126,7 +126,7 @@ const UserProfile = () => {
       }
 
       console.log('Successfully signed in');
-      navigate('/profile');
+      navigate('/profile', { replace: true });
     } catch (err) {
       console.error('Error signing in:', err);
       setError(err.message || 'An error occurred during sign in');
