@@ -16,15 +16,49 @@ export function useStreetArt() {
       try {
         console.log('Starting street art fetch...');
         
-        // Public query - no auth required
+        // First, check if we can access the table at all
+        const { count, error: countError } = await supabase
+          .from('street_art')
+          .select('*', { count: 'exact', head: true });
+
+        console.log('Count check result:', { count, error: countError });
+
+        if (countError) {
+          console.error('Count check failed:', countError);
+          throw countError;
+        }
+
+        // Now try to fetch the actual data
         const { data, error: queryError } = await supabase
           .from('street_art')
-          .select('id, title, image, description')
-          .limit(10)
-          .returns<StreetArt[]>();
+          .select(`
+            id,
+            title,
+            description,
+            image,
+            created_at,
+            artist_id,
+            neighborhood_id,
+            artists:artist_id (
+              id,
+              name
+            ),
+            neighborhoods:neighborhood_id (
+              id,
+              name
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        console.log('Query result:', {
+          success: !queryError,
+          data: data?.length,
+          error: queryError
+        });
 
         if (queryError) {
-          console.error('Street art query error:', queryError);
+          console.error('Query failed:', queryError);
           throw queryError;
         }
 
@@ -36,15 +70,26 @@ export function useStreetArt() {
           return;
         }
 
-        console.log('Street art data found:', data.length, 'items');
+        console.log('Street art data found:', {
+          count: data.length,
+          firstItem: data[0]
+        });
         
         if (isMounted) {
           const transformedData = data.map(art => ({
             ...art,
             title: art.title || 'Untitled',
             description: art.description || 'No description available',
-            image: art.image || ''
+            image: art.image || '',
+            artist: art.artists?.name || 'Unknown Artist',
+            neighborhood: art.neighborhoods?.name || 'Unknown Location'
           }));
+
+          console.log('Transformed data:', {
+            count: transformedData.length,
+            firstItem: transformedData[0]
+          });
+
           setStreetArt(transformedData);
         }
       } catch (e) {

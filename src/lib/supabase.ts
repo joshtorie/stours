@@ -11,15 +11,9 @@ if (!supabaseUrl || !supabaseKey) {
 // Create a public client that doesn't require authentication
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: true, // Keep the session for authenticated users
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      // Add headers to bypass RLS for public data
-      'X-Client-Info': 'stours-public'
-    }
+    persistSession: false, // Don't persist session by default
+    autoRefreshToken: false, // Don't auto refresh token
+    detectSessionInUrl: false // Don't look for auth in URL
   }
 });
 
