@@ -10,39 +10,62 @@ export function useArtists() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchArtists() {
+      if (!isMounted) return;
+
       try {
+        setLoading(true);
+        console.log('Starting artists fetch...');
+
+        // Basic query
         const { data, error: queryError } = await supabase
           .from('artists')
-          .select(`
-            id,
-            name,
-            bio,
-            hero_image,
-            created_at,
-            street_art (
-              id,
-              title
-            )
-          `)
-          .order('name');
+          .select('*');
 
         if (queryError) {
-          console.error('Error fetching artists:', queryError);
+          console.error('Artists query failed:', queryError);
           throw queryError;
         }
 
-        console.log('Artists data:', data);
-        setArtists(data || []);
+        console.log('Raw artists data:', data);
+
+        if (!data) {
+          setArtists([]);
+          return;
+        }
+
+        // Transform and set data
+        const transformedData = data.map(artist => ({
+          ...artist,
+          name: artist.name || 'Unknown Artist',
+          bio: artist.bio || 'No biography available',
+          hero_image: artist.hero_image || ''
+        }));
+
+        if (isMounted) {
+          console.log('Setting artists data:', transformedData);
+          setArtists(transformedData);
+        }
       } catch (e) {
         console.error('Error in useArtists:', e);
-        setError(e instanceof Error ? e.message : 'An error occurred');
+        if (isMounted) {
+          setError(e instanceof Error ? e.message : 'An error occurred');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          console.log('Setting loading to false');
+          setLoading(false);
+        }
       }
     }
 
     fetchArtists();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { artists, loading, error };

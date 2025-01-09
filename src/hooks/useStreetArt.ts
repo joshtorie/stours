@@ -16,109 +16,74 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchStreetArt() {
+      if (!isMounted) return;
+      
       try {
-        console.log('Fetching street art with options:', options);
+        setLoading(true);
+        console.log('Starting street art fetch...');
 
-        // First, let's try a simple query to check if we can access the table
-        const { data: basicData, error: basicError } = await supabase
+        // Basic query to test connection
+        const { data: testData, error: testError } = await supabase
           .from('street_art')
-          .select('id, title, image, description');
+          .select('count');
 
-        console.log('Basic query result:', {
-          data: basicData,
-          error: basicError
-        });
-
-        if (basicError) {
-          console.error('Basic query error:', basicError);
-          throw basicError;
+        if (testError) {
+          console.error('Database connection test failed:', testError);
+          throw testError;
         }
 
-        // Now try with relationships
-        let query = supabase
+        console.log('Database connection test successful:', testData);
+
+        // Main query
+        const { data, error: queryError } = await supabase
           .from('street_art')
-          .select(`
-            id,
-            title,
-            image,
-            description,
-            created_at,
-            artist_id,
-            neighborhood_id,
-            ar_content,
-            artists!artist_id (
-              id,
-              name,
-              bio,
-              hero_image
-            ),
-            neighborhoods!neighborhood_id (
-              id,
-              name,
-              city_id,
-              hero_image
-            )
-          `);
-
-        // Add filters if provided
-        if (options.artistId) {
-          query = query.eq('artist_id', options.artistId);
-        }
-        if (options.neighborhoodId) {
-          query = query.eq('neighborhood_id', options.neighborhoodId);
-        }
-        if (options.cityId) {
-          query = query.eq('neighborhoods.city_id', options.cityId);
-        }
-
-        // Add ordering
-        query = query.order('created_at', { ascending: false });
-
-        const { data, error: queryError } = await query;
-
-        console.log('Full query result:', {
-          data,
-          error: queryError
-        });
+          .select('*');
 
         if (queryError) {
-          console.error('Full query error:', queryError);
+          console.error('Street art query failed:', queryError);
           throw queryError;
         }
 
-        if (!data || data.length === 0) {
-          console.log('No street art found');
+        console.log('Raw street art data:', data);
+
+        if (!data) {
           setStreetArt([]);
           return;
         }
 
-        // Transform data
+        // Transform and set data
         const transformedData = data.map(art => ({
           ...art,
           title: art.title || 'Untitled',
           description: art.description || 'No description available',
-          image: art.image || '',
-          ar_content: art.ar_content ? {
-            ...art.ar_content,
-            modelUrl: art.ar_content.modelUrl || '',
-            imageUrl: art.ar_content.imageUrl || '',
-            iosQuickLook: art.ar_content.iosQuickLook || '',
-            markerImage: art.ar_content.markerImage || ''
-          } : null
+          image: art.image || ''
         }));
 
-        console.log('Transformed data:', transformedData);
-        setStreetArt(transformedData);
+        if (isMounted) {
+          console.log('Setting street art data:', transformedData);
+          setStreetArt(transformedData);
+        }
       } catch (e) {
         console.error('Error in useStreetArt:', e);
-        setError(e instanceof Error ? e.message : 'An error occurred');
+        if (isMounted) {
+          setError(e instanceof Error ? e.message : 'An error occurred');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          console.log('Setting loading to false');
+          setLoading(false);
+        }
       }
     }
 
     fetchStreetArt();
+
+    return () => {
+      isMounted = false;
+    };
   }, [options.artistId, options.neighborhoodId, options.cityId]);
 
   return { streetArt, loading, error };
