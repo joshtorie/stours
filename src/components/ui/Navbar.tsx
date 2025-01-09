@@ -7,13 +7,11 @@ import { supabase } from '../../lib/supabase';
 const Navbar = () => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check for user session
     const checkUser = async () => {
       try {
-        setLoading(true);
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -42,8 +40,6 @@ const Navbar = () => {
         console.error('Error in checkUser:', err);
         setUser(null);
         setIsAdmin(false);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -103,18 +99,20 @@ const Navbar = () => {
 
           {/* User Profile and Admin Settings */}
           <div className="flex items-center space-x-2">
-            {!loading && (
-              <Link
-                to={user ? "/profile" : "/auth"}
-                className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
-              >
-                <UserCircleIcon className="h-6 w-6 text-gray-600" />
-              </Link>
-            )}
+            <Link
+              to={user ? "/profile" : "/auth"}
+              className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              title={user ? "View Profile" : "Sign In"}
+            >
+              <UserCircleIcon 
+                className={`h-6 w-6 ${user ? 'text-blue-600' : 'text-gray-600'}`} 
+              />
+            </Link>
             {isAdmin && (
               <Link
                 to="/admin"
                 className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                title="Admin Settings"
               >
                 <Cog6ToothIcon className="h-6 w-6 text-gray-600" />
               </Link>

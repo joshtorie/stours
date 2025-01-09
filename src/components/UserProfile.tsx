@@ -17,6 +17,7 @@ const UserProfile = () => {
     try {
       console.log('Starting sign up process...');
       
+      // Step 1: Sign up with Supabase auth
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -37,9 +38,31 @@ const UserProfile = () => {
         throw new Error('Failed to create user account');
       }
 
+      // Step 2: Manually create user record (in case trigger fails)
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([{
+          id: data.user.id,
+          email: data.user.email,
+          username: username || data.user.email?.split('@')[0],
+          role: 'user',
+          tours: [],
+          favorited_arts: [],
+          reviews: [],
+          added_street_arts: []
+        }])
+        .single();
+
+      if (insertError) {
+        // If error is not a duplicate key error, throw it
+        if (insertError.code !== '23505') {
+          console.error('Error creating user record:', insertError);
+          throw insertError;
+        }
+      }
+
       console.log('Successfully created user account');
       navigate('/profile');
-      
     } catch (err) {
       console.error('Error in sign up process:', err);
       setError(err.message || 'An error occurred during sign up');
