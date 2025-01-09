@@ -12,24 +12,58 @@ const UserProfile = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { user, error } = await supabase.auth.signUp({ email, password });
-    if (error) setError(error.message);
-    else {
-      await supabase
-        .from('users')
-        .insert([{ id: user.id, username, role: 'user' }]);
-      console.log('User signed up:', user);
-      navigate('/user-profile');
+    try {
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username
+          }
+        }
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (user) {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([{ 
+            id: user.id, 
+            username, 
+            email,
+            role: 'user',
+            created_at: new Date().toISOString()
+          }]);
+
+        if (insertError) throw insertError;
+        
+        console.log('User signed up:', user);
+        navigate('/user-profile');
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Error signing up:', err);
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { user, error } = await supabase.auth.signIn({ email, password });
-    if (error) setError(error.message);
-    else {
-      console.log('User signed in:', user);
-      navigate('/user-profile');
+    try {
+      const { data: { user }, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (signInError) throw signInError;
+
+      if (user) {
+        console.log('User signed in:', user);
+        navigate('/user-profile');
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Error signing in:', err);
     }
   };
 
