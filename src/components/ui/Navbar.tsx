@@ -10,22 +10,55 @@ export function Navbar() {
 
   useEffect(() => {
     // Check for user session
-    const session = supabase.auth.getSession();
-    if (session) {
-      setUser(session.user);
-      // Check if user is admin
-      const checkAdmin = async () => {
-        const { data, error } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        if (data && data.role === 'admin') {
-          setIsAdmin(true);
+    const checkUser = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('Session:', session);
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          return;
         }
-      };
-      checkAdmin();
-    }
+
+        if (session?.user) {
+          setUser(session.user);
+          // Check if user is admin
+          const { data, error: roleError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', session.user.id)
+            .single();
+
+          if (roleError) {
+            console.error('Error getting user role:', roleError);
+            return;
+          }
+
+          if (data?.role === 'admin') {
+            setIsAdmin(true);
+          }
+        }
+      } catch (err) {
+        console.error('Error in checkUser:', err);
+      }
+    };
+
+    checkUser();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session);
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   return (

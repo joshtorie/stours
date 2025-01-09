@@ -12,8 +12,11 @@ const UserProfile = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     try {
-      // Step 1: Sign up the user with Supabase auth
+      console.log('Starting sign up process...');
+      
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -24,57 +27,55 @@ const UserProfile = () => {
         }
       });
 
-      if (signUpError) throw signUpError;
-
-      if (data?.user?.id) {
-        console.log('User created in auth:', data.user);
-        
-        // Step 2: Add the user to your users table
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: data.user.id,
-            email: email,
-            username: username,
-            role: 'user'
-            // Other fields will use default values from the table definition
-          });
-
-        if (insertError) {
-          console.error('Error inserting user data:', insertError);
-          throw insertError;
-        }
-
-        console.log('User added to users table');
-        navigate('/user-profile');
-      } else {
-        throw new Error('Failed to create user');
+      if (signUpError) {
+        console.error('Sign up error:', signUpError);
+        throw signUpError;
       }
+
+      if (!data?.user) {
+        console.error('No user in response');
+        throw new Error('Failed to create user account');
+      }
+
+      console.log('Successfully created user account');
+      navigate('/user-profile');
+      
     } catch (err) {
       console.error('Error in sign up process:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred during sign up');
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     try {
+      console.log('Starting sign in process...');
+      
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (signInError) throw signInError;
+      console.log('Sign in response:', data);
 
-      if (data?.user) {
-        console.log('User signed in:', data.user);
-        navigate('/user-profile');
-      } else {
+      if (signInError) {
+        console.error('Sign in error:', signInError);
+        throw signInError;
+      }
+
+      if (!data?.user) {
+        console.error('No user in response');
         throw new Error('Failed to sign in');
       }
+
+      console.log('Successfully signed in');
+      navigate('/user-profile');
+      
     } catch (err) {
       console.error('Error signing in:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred during sign in');
     }
   };
 
