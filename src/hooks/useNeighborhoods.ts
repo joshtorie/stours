@@ -4,11 +4,7 @@ import type { Database } from '../types/supabase';
 
 type Neighborhood = Database['public']['Tables']['neighborhoods']['Row'];
 
-interface UseNeighborhoodsOptions {
-  cityId?: string;
-}
-
-export function useNeighborhoods(options: UseNeighborhoodsOptions = {}) {
+export function useNeighborhoods() {
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,64 +13,46 @@ export function useNeighborhoods(options: UseNeighborhoodsOptions = {}) {
     let isMounted = true;
 
     async function fetchNeighborhoods() {
-      if (!isMounted) return;
-
       try {
-        setLoading(true);
         console.log('Starting neighborhoods fetch...');
-
-        let query = supabase
+        
+        // Public query - no auth required
+        const { data, error: queryError } = await supabase
           .from('neighborhoods')
-          .select(`
-            id,
-            name,
-            city_id,
-            hero_image,
-            created_at,
-            cities (
-              id,
-              name
-            )
-          `)
-          .order('name');
-
-        if (options.cityId) {
-          query = query.eq('city_id', options.cityId);
-        }
-
-        const { data, error: queryError } = await query;
+          .select('id, name, hero_image, city_id')
+          .limit(10)
+          .returns<Neighborhood[]>();
 
         if (queryError) {
-          console.error('Neighborhoods query failed:', queryError);
+          console.error('Neighborhoods query error:', queryError);
           throw queryError;
         }
 
-        console.log('Raw neighborhoods data:', data);
-
-        if (!data) {
-          setNeighborhoods([]);
+        if (!data || data.length === 0) {
+          console.log('No neighborhoods data found');
+          if (isMounted) {
+            setNeighborhoods([]);
+          }
           return;
         }
 
-        // Transform and set data
-        const transformedData = data.map(neighborhood => ({
-          ...neighborhood,
-          name: neighborhood.name || 'Unknown Neighborhood',
-          hero_image: neighborhood.hero_image || ''
-        }));
-
+        console.log('Neighborhoods data found:', data.length, 'items');
+        
         if (isMounted) {
-          console.log('Setting neighborhoods data:', transformedData);
+          const transformedData = data.map(neighborhood => ({
+            ...neighborhood,
+            name: neighborhood.name || 'Unknown Neighborhood',
+            hero_image: neighborhood.hero_image || ''
+          }));
           setNeighborhoods(transformedData);
         }
       } catch (e) {
-        console.error('Error in useNeighborhoods:', e);
+        console.error('Error fetching neighborhoods:', e);
         if (isMounted) {
           setError(e instanceof Error ? e.message : 'An error occurred');
         }
       } finally {
         if (isMounted) {
-          console.log('Setting loading to false');
           setLoading(false);
         }
       }
@@ -85,7 +63,7 @@ export function useNeighborhoods(options: UseNeighborhoodsOptions = {}) {
     return () => {
       isMounted = false;
     };
-  }, [options.cityId]);
+  }, []);
 
   return { neighborhoods, loading, error };
 }

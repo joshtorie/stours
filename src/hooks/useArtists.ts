@@ -13,49 +13,47 @@ export function useArtists() {
     let isMounted = true;
 
     async function fetchArtists() {
-      if (!isMounted) return;
-
       try {
-        setLoading(true);
         console.log('Starting artists fetch...');
-
-        // Basic query
+        
+        // Public query - no auth required
         const { data, error: queryError } = await supabase
           .from('artists')
-          .select('*');
+          .select('id, name, bio, hero_image')
+          .limit(10)
+          .returns<Artist[]>();
 
         if (queryError) {
-          console.error('Artists query failed:', queryError);
+          console.error('Artists query error:', queryError);
           throw queryError;
         }
 
-        console.log('Raw artists data:', data);
-
-        if (!data) {
-          setArtists([]);
+        if (!data || data.length === 0) {
+          console.log('No artists data found');
+          if (isMounted) {
+            setArtists([]);
+          }
           return;
         }
 
-        // Transform and set data
-        const transformedData = data.map(artist => ({
-          ...artist,
-          name: artist.name || 'Unknown Artist',
-          bio: artist.bio || 'No biography available',
-          hero_image: artist.hero_image || ''
-        }));
-
+        console.log('Artists data found:', data.length, 'items');
+        
         if (isMounted) {
-          console.log('Setting artists data:', transformedData);
+          const transformedData = data.map(artist => ({
+            ...artist,
+            name: artist.name || 'Unknown Artist',
+            bio: artist.bio || 'No biography available',
+            hero_image: artist.hero_image || ''
+          }));
           setArtists(transformedData);
         }
       } catch (e) {
-        console.error('Error in useArtists:', e);
+        console.error('Error fetching artists:', e);
         if (isMounted) {
           setError(e instanceof Error ? e.message : 'An error occurred');
         }
       } finally {
         if (isMounted) {
-          console.log('Setting loading to false');
           setLoading(false);
         }
       }

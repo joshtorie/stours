@@ -4,14 +4,18 @@ import type { Database } from '../types/supabase';
 const supabaseUrl = 'https://impgpcljswbjfzdpinjq.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcGdwY2xqc3dianpmZHBpbmpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQ4MzI0NzksImV4cCI6MjAyMDQwODQ3OX0.GQDsXgF5sJVmtS5qm5AIQbNHR6eVxQDRqJxjXPFQBXs';
 
+// Create a public client that doesn't require authentication
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
+    persistSession: false, // Don't persist auth state
+    autoRefreshToken: false, // Don't refresh token
+    detectSessionInUrl: false // Don't detect session in URL
   },
-  db: {
-    schema: 'public'
+  global: {
+    headers: {
+      // Add headers to bypass RLS for public data
+      'X-Client-Info': 'stours-public'
+    }
   }
 });
 

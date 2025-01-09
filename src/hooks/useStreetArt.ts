@@ -16,27 +16,22 @@ export function useStreetArt() {
       try {
         console.log('Starting street art fetch...');
         
-        // Simple query first
+        // Public query - no auth required
         const { data, error: queryError } = await supabase
           .from('street_art')
           .select('id, title, image, description')
-          .limit(10);
-
-        console.log('Street art query result:', {
-          success: !queryError,
-          data,
-          error: queryError
-        });
+          .limit(10)
+          .returns<StreetArt[]>();
 
         if (queryError) {
+          console.error('Street art query error:', queryError);
           throw queryError;
         }
 
-        if (!data) {
+        if (!data || data.length === 0) {
           console.log('No street art data found');
           if (isMounted) {
             setStreetArt([]);
-            setError('No data available');
           }
           return;
         }
@@ -44,12 +39,13 @@ export function useStreetArt() {
         console.log('Street art data found:', data.length, 'items');
         
         if (isMounted) {
-          setStreetArt(data.map(art => ({
+          const transformedData = data.map(art => ({
             ...art,
             title: art.title || 'Untitled',
             description: art.description || 'No description available',
             image: art.image || ''
-          })));
+          }));
+          setStreetArt(transformedData);
         }
       } catch (e) {
         console.error('Error fetching street art:', e);
@@ -58,7 +54,6 @@ export function useStreetArt() {
         }
       } finally {
         if (isMounted) {
-          console.log('Setting street art loading to false');
           setLoading(false);
         }
       }
