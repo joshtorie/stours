@@ -105,7 +105,7 @@ export function Navbar() {
           {/* User Profile and Admin Settings */}
           <div className="flex items-center space-x-2">
             <Link
-              to={user ? "/user-profile" : "/user"}
+              to={user ? "/profile" : "/auth"}
               className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
             >
               <UserCircleIcon className="h-6 w-6 text-gray-600" />

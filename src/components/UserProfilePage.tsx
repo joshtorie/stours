@@ -28,13 +28,13 @@ const UserProfilePage = () => {
 
         if (sessionError) {
           console.error('Session error:', sessionError);
-          navigate('/user');
+          navigate('/auth');
           return;
         }
 
         if (!session?.user) {
           console.log('No active session');
-          navigate('/user');
+          navigate('/auth');
           return;
         }
 

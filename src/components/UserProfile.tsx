@@ -38,7 +38,7 @@ const UserProfile = () => {
       }
 
       console.log('Successfully created user account');
-      navigate('/user-profile');
+      navigate('/profile');
       
     } catch (err) {
       console.error('Error in sign up process:', err);
@@ -71,7 +71,7 @@ const UserProfile = () => {
       }
 
       console.log('Successfully signed in');
-      navigate('/user-profile');
+      navigate('/profile');
       
     } catch (err) {
       console.error('Error signing in:', err);
