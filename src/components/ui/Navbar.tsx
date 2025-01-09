@@ -4,7 +4,7 @@ import { UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import logo from '../../assets/STreet ART TOuRS.png';
 import { supabase } from '../../lib/supabase';
 
-export function Navbar() {
+const Navbar = () => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -123,4 +123,6 @@ export function Navbar() {
       </div>
     </nav>
   );
-}
+};
+
+export default Navbar;
