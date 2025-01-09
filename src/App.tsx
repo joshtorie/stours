@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Navbar } from './components/ui/Navbar';
+import UserProfile from './components/UserProfile';
 import HomePage from './pages/HomePage';
 import CityPage from './pages/CityPage';
 import NeighborhoodPage from './pages/NeighborhoodPage';
@@ -16,7 +17,9 @@ import TourComplete from './pages/TourComplete';
 export default function App() {
   return (
     <Router>
-      <Navbar />
+      <nav>
+        <UserProfile />
+      </nav>
       <div className="pt-16"> {/* Add padding to account for fixed navbar */}
         <Routes>
           <Route path="/" element={<HomePage />} />
