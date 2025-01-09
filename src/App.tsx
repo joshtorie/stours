@@ -18,9 +18,7 @@ import TourComplete from './pages/TourComplete';
 export default function App() {
   return (
     <Router>
-      <nav>
-        <UserProfile />
-      </nav>
+      <Navbar />
       <div className="pt-16"> {/* Add padding to account for fixed navbar */}
         <Routes>
           <Route path="/" element={<HomePage />} />
