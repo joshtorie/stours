@@ -22,28 +22,65 @@ const UserProfilePage = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        setLoading(true);
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError) throw sessionError;
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          navigate('/user');
+          return;
+        }
 
-        if (!session) {
+        if (!session?.user) {
+          console.log('No active session');
           navigate('/user');
           return;
         }
 
         // Fetch user data from the users table
-        const { data, error: userError } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (userError) throw userError;
+        if (userError) {
+          console.error('Error fetching user data:', userError);
+          throw userError;
+        }
 
-        setUserData(data);
+        // If no user record exists, create one
+        if (!userData) {
+          console.log('Creating new user record');
+          const defaultUserData = {
+            id: session.user.id,
+            email: session.user.email,
+            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
+            role: 'user',
+            tours: [],
+            favorited_arts: [],
+            reviews: [],
+            added_street_arts: []
+          };
+
+          const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert([defaultUserData])
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Error creating user record:', insertError);
+            throw insertError;
+          }
+
+          setUserData(newUser);
+        } else {
+          setUserData(userData);
+        }
       } catch (err) {
-        console.error('Error fetching user data:', err);
+        console.error('Error in fetchUserData:', err);
         setError(err.message);
       } finally {
         setLoading(false);

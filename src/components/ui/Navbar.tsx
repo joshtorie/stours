@@ -22,24 +22,27 @@ export function Navbar() {
 
         if (session?.user) {
           setUser(session.user);
+          
           // Check if user is admin
           const { data, error: roleError } = await supabase
             .from('users')
             .select('role')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
 
           if (roleError) {
             console.error('Error getting user role:', roleError);
-            return;
-          }
-
-          if (data?.role === 'admin') {
+            // Don't return here, just log the error
+          } else if (data?.role === 'admin') {
             setIsAdmin(true);
           }
+        } else {
+          setUser(null);
+          setIsAdmin(false);
         }
       } catch (err) {
         console.error('Error in checkUser:', err);
+        // Don't throw error, just log it
       }
     };
 
@@ -50,6 +53,14 @@ export function Navbar() {
       console.log('Auth state changed:', event, session);
       if (session?.user) {
         setUser(session.user);
+        // Check admin status again
+        const { data } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        
+        setIsAdmin(data?.role === 'admin');
       } else {
         setUser(null);
         setIsAdmin(false);
