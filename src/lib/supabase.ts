@@ -1,15 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/supabase';
 
-const supabaseUrl = 'https://impgpcljswbjfzdpinjq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcGdwY2xqc3dianpmZHBpbmpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQ4MzI0NzksImV4cCI6MjAyMDQwODQ3OX0.GQDsXgF5sJVmtS5qm5AIQbNHR6eVxQDRqJxjXPFQBXs';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
 
 // Create a public client that doesn't require authentication
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: false, // Don't persist auth state
-    autoRefreshToken: false, // Don't refresh token
-    detectSessionInUrl: false // Don't detect session in URL
+    persistSession: true, // Keep the session for authenticated users
+    autoRefreshToken: true,
+    detectSessionInUrl: true
   },
   global: {
     headers: {
