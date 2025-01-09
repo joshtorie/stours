@@ -8,10 +8,6 @@ interface UserData {
   username: string;
   email: string;
   role: string;
-  tours: any[];
-  favorited_arts: any[];
-  reviews: any[];
-  added_street_arts: any[];
 }
 
 const UserProfilePage = () => {
@@ -35,28 +31,10 @@ const UserProfilePage = () => {
       try {
         setLoading(true);
         
-        // Fetch user data from the users table
+        // Fetch basic user data first
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select(`
-            *,
-            tours,
-            favorited_arts (
-              id,
-              title,
-              image
-            ),
-            reviews (
-              id,
-              content,
-              rating
-            ),
-            added_street_arts (
-              id,
-              title,
-              image
-            )
-          `)
+          .select('id, username, email, role')
           .eq('id', user.id)
           .single();
 
@@ -135,49 +113,6 @@ const UserProfilePage = () => {
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{userData?.role}</dd>
               </div>
             </dl>
-          </div>
-        </div>
-
-        {/* Activity Sections */}
-        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
-          {/* Tours */}
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Your Tours</h3>
-            </div>
-            <div className="border-t border-gray-200">
-              {userData?.tours?.length === 0 ? (
-                <p className="p-4 text-gray-500">No tours created yet.</p>
-              ) : (
-                <ul className="divide-y divide-gray-200">
-                  {userData?.tours?.map((tour: any) => (
-                    <li key={tour.id} className="p-4">
-                      <p className="text-sm font-medium text-gray-900">{tour.name}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-
-          {/* Favorited Art */}
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Favorited Art</h3>
-            </div>
-            <div className="border-t border-gray-200">
-              {userData?.favorited_arts?.length === 0 ? (
-                <p className="p-4 text-gray-500">No favorited art yet.</p>
-              ) : (
-                <ul className="divide-y divide-gray-200">
-                  {userData?.favorited_arts?.map((art: any) => (
-                    <li key={art.id} className="p-4">
-                      <p className="text-sm font-medium text-gray-900">{art.title}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
           </div>
         </div>
       </div>
