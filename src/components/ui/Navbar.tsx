@@ -1,9 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import logo from '../../assets/STreet ART TOuRS.png';
+import { supabase } from '../../lib/supabase';
 
 export function Navbar() {
+  const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    // Check for user session
+    const session = supabase.auth.getSession();
+    if (session) {
+      setUser(session.user);
+      // Check if user is admin
+      const checkAdmin = async () => {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        if (data && data.role === 'admin') {
+          setIsAdmin(true);
+        }
+      };
+      checkAdmin();
+    }
+  }, []);
+
   return (
     <nav className="bg-white shadow-md">
       <div className="container mx-auto px-4">
@@ -34,13 +58,23 @@ export function Navbar() {
             </Link>
           </div>
 
-          {/* Admin Settings */}
-          <Link
-            to="/admin"
-            className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
-          >
-            <Cog6ToothIcon className="h-6 w-6 text-gray-600" />
-          </Link>
+          {/* User Profile and Admin Settings */}
+          <div className="flex items-center space-x-2">
+            <Link
+              to={user ? "/user-profile" : "/user"}
+              className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <UserCircleIcon className="h-6 w-6 text-gray-600" />
+            </Link>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <Cog6ToothIcon className="h-6 w-6 text-gray-600" />
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </nav>

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Navbar } from './components/ui/Navbar';
 import UserProfile from './components/UserProfile';
+import UserProfilePage from './components/UserProfilePage';
 import HomePage from './pages/HomePage';
 import CityPage from './pages/CityPage';
 import NeighborhoodPage from './pages/NeighborhoodPage';
@@ -23,6 +24,8 @@ export default function App() {
       <div className="pt-16"> {/* Add padding to account for fixed navbar */}
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/user" element={<UserProfile />} />
+          <Route path="/user-profile" element={<UserProfilePage />} />
           <Route path="/cities/:id" element={<CityPage />} />
           <Route path="/neighborhoods/:id" element={<NeighborhoodPage />} />
           <Route path="/artists/:id" element={<ArtistPage />} />
