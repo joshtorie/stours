@@ -26,14 +26,8 @@ const UserProfilePage = () => {
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          navigate('/auth');
-          return;
-        }
-
-        if (!session?.user) {
-          console.log('No active session');
+        if (sessionError || !session?.user) {
+          // If no session or error, redirect to auth
           navigate('/auth');
           return;
         }
@@ -47,41 +41,21 @@ const UserProfilePage = () => {
 
         if (userError) {
           console.error('Error fetching user data:', userError);
-          throw userError;
+          setError(userError.message);
+          return;
         }
 
-        // If no user record exists, create one
         if (!userData) {
-          console.log('Creating new user record');
-          const defaultUserData = {
-            id: session.user.id,
-            email: session.user.email,
-            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
-            role: 'user',
-            tours: [],
-            favorited_arts: [],
-            reviews: [],
-            added_street_arts: []
-          };
-
-          const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert([defaultUserData])
-            .select()
-            .single();
-
-          if (insertError) {
-            console.error('Error creating user record:', insertError);
-            throw insertError;
-          }
-
-          setUserData(newUser);
-        } else {
-          setUserData(userData);
+          // If no user data, redirect to auth
+          navigate('/auth');
+          return;
         }
+
+        setUserData(userData);
       } catch (err) {
         console.error('Error in fetchUserData:', err);
         setError(err.message);
+        navigate('/auth');
       } finally {
         setLoading(false);
       }

@@ -7,22 +7,23 @@ import { supabase } from '../../lib/supabase';
 const Navbar = () => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check for user session
     const checkUser = async () => {
       try {
+        setLoading(true);
         const { data: { session }, error } = await supabase.auth.getSession();
-        console.log('Session:', session);
         
         if (error) {
           console.error('Error getting session:', error);
+          setUser(null);
           return;
         }
 
         if (session?.user) {
           setUser(session.user);
-          
           // Check if user is admin
           const { data, error: roleError } = await supabase
             .from('users')
@@ -30,10 +31,7 @@ const Navbar = () => {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          if (roleError) {
-            console.error('Error getting user role:', roleError);
-            // Don't return here, just log the error
-          } else if (data?.role === 'admin') {
+          if (!roleError && data?.role === 'admin') {
             setIsAdmin(true);
           }
         } else {
@@ -42,18 +40,19 @@ const Navbar = () => {
         }
       } catch (err) {
         console.error('Error in checkUser:', err);
-        // Don't throw error, just log it
+        setUser(null);
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
       }
     };
 
     checkUser();
 
-    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session);
       if (session?.user) {
         setUser(session.user);
-        // Check admin status again
         const { data } = await supabase
           .from('users')
           .select('role')
@@ -104,12 +103,14 @@ const Navbar = () => {
 
           {/* User Profile and Admin Settings */}
           <div className="flex items-center space-x-2">
-            <Link
-              to={user ? "/profile" : "/auth"}
-              className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <UserCircleIcon className="h-6 w-6 text-gray-600" />
-            </Link>
+            {!loading && (
+              <Link
+                to={user ? "/profile" : "/auth"}
+                className="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <UserCircleIcon className="h-6 w-6 text-gray-600" />
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 to="/admin"
