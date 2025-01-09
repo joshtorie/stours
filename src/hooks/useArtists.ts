@@ -12,14 +12,20 @@ export function useArtists() {
   useEffect(() => {
     async function fetchArtists() {
       try {
-        const { data, error } = await supabase
+        const { data, error: queryError } = await supabase
           .from('artists')
           .select('*')
           .order('name');
 
-        if (error) throw error;
-        setArtists(data);
+        if (queryError) {
+          console.error('Error in artists query:', queryError);
+          throw queryError;
+        }
+
+        console.log('Artists data:', data);
+        setArtists(data || []);
       } catch (e) {
+        console.error('Error fetching artists:', e);
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);

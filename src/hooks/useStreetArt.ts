@@ -22,11 +22,12 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
           .from('street_art')
           .select(`
             *,
-            neighborhoods!inner(
+            neighborhoods(
               id,
+              name,
               city_id
             ),
-            artists!inner(
+            artists(
               id,
               name
             )
@@ -45,11 +46,15 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
 
         const { data, error: queryError } = await query;
 
-        if (queryError) throw queryError;
+        if (queryError) {
+          console.error('Error in street art query:', queryError);
+          throw queryError;
+        }
+        
+        console.log('Raw street art data:', data);
         
         // Transform data to include full image URLs
         const transformedData = data?.map(art => {
-          // Just use the image URL directly as it's already stored as a public URL
           return {
             ...art,
             image: art.image,

@@ -4,7 +4,11 @@ import type { Database } from '../types/supabase';
 
 type Neighborhood = Database['public']['Tables']['neighborhoods']['Row'];
 
-export function useNeighborhoods(cityId?: string) {
+interface UseNeighborhoodsOptions {
+  cityId?: string;
+}
+
+export function useNeighborhoods(options: UseNeighborhoodsOptions = {}) {
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,28 +18,24 @@ export function useNeighborhoods(cityId?: string) {
       try {
         let query = supabase
           .from('neighborhoods')
-          .select(`
-            id,
-            name,
-            city_id,
-            hero_image,
-            created_at
-          `)
+          .select('*')
           .order('name');
 
-        if (cityId) {
-          query = query.eq('city_id', cityId);
+        if (options.cityId) {
+          query = query.eq('city_id', options.cityId);
         }
 
         const { data, error: queryError } = await query;
 
-        if (queryError) throw queryError;
-        if (!data) throw new Error('No data returned');
+        if (queryError) {
+          console.error('Error in neighborhoods query:', queryError);
+          throw queryError;
+        }
 
-        console.log('Fetched neighborhoods:', data); // Debug log
-        setNeighborhoods(data);
+        console.log('Neighborhoods data:', data);
+        setNeighborhoods(data || []);
       } catch (e) {
-        console.error('Error fetching neighborhoods:', e); // Debug log
+        console.error('Error fetching neighborhoods:', e);
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);
@@ -43,7 +43,7 @@ export function useNeighborhoods(cityId?: string) {
     }
 
     fetchNeighborhoods();
-  }, [cityId]);
+  }, [options.cityId]);
 
   return { neighborhoods, loading, error };
 }
