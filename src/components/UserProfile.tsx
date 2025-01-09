@@ -23,7 +23,7 @@ const UserProfile = () => {
         password,
         options: {
           data: {
-            username: username
+            username: username || email.split('@')[0]
           }
         }
       });
@@ -38,13 +38,14 @@ const UserProfile = () => {
         throw new Error('Failed to create user account');
       }
 
-      // Step 2: Manually create user record (in case trigger fails)
+      // Step 2: Create user record
       const { error: insertError } = await supabase
         .from('users')
         .insert([{
           id: data.user.id,
           email: data.user.email,
           username: username || data.user.email?.split('@')[0],
+          password: password, // Add password field
           role: 'user',
           tours: [],
           favorited_arts: [],
@@ -54,11 +55,8 @@ const UserProfile = () => {
         .single();
 
       if (insertError) {
-        // If error is not a duplicate key error, throw it
-        if (insertError.code !== '23505') {
-          console.error('Error creating user record:', insertError);
-          throw insertError;
-        }
+        console.error('Error creating user record:', insertError);
+        throw insertError;
       }
 
       console.log('Successfully created user account');
@@ -76,12 +74,11 @@ const UserProfile = () => {
     try {
       console.log('Starting sign in process...');
       
+      // Step 1: Sign in with Supabase auth
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
-
-      console.log('Sign in response:', data);
 
       if (signInError) {
         console.error('Sign in error:', signInError);
@@ -93,7 +90,7 @@ const UserProfile = () => {
         throw new Error('Failed to sign in');
       }
 
-      // Check if user record exists
+      // Step 2: Get or create user record
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -101,11 +98,11 @@ const UserProfile = () => {
         .single();
 
       if (userError && userError.code !== 'PGRST116') {
-        console.error('Error checking user record:', userError);
+        console.error('Error fetching user:', userError);
         throw userError;
       }
 
-      // If user record doesn't exist, create it
+      // Create user record if it doesn't exist
       if (!userData) {
         const { error: insertError } = await supabase
           .from('users')
@@ -113,6 +110,7 @@ const UserProfile = () => {
             id: data.user.id,
             email: data.user.email,
             username: data.user.email?.split('@')[0],
+            password: password, // Add password field
             role: 'user',
             tours: [],
             favorited_arts: [],
@@ -127,9 +125,8 @@ const UserProfile = () => {
         }
       }
 
-      console.log('Successfully signed in, navigating to profile...');
+      console.log('Successfully signed in');
       navigate('/profile');
-      
     } catch (err) {
       console.error('Error signing in:', err);
       setError(err.message || 'An error occurred during sign in');
@@ -143,10 +140,10 @@ const UserProfile = () => {
           {isSignUp ? 'Create your account' : 'Sign in to your account'}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+          {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
           <button
             onClick={() => setIsSignUp(!isSignUp)}
-            className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none focus:underline transition ease-in-out duration-150"
+            className="font-medium text-indigo-600 hover:text-indigo-500"
           >
             {isSignUp ? 'Sign in' : 'Sign up'}
           </button>
@@ -155,32 +152,7 @@ const UserProfile = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-
           <form className="space-y-6" onSubmit={isSignUp ? handleSignUp : handleSignIn}>
-            {isSignUp && (
-              <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                  Username
-                </label>
-                <div className="mt-1">
-                  <input
-                    id="username"
-                    name="username"
-                    type="text"
-                    required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-            )}
-
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
@@ -194,10 +166,29 @@ const UserProfile = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
             </div>
+
+            {isSignUp && (
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                  Username
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
@@ -212,15 +203,21 @@ const UserProfile = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
             </div>
 
+            {error && (
+              <div className="text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 {isSignUp ? 'Sign up' : 'Sign in'}
               </button>
