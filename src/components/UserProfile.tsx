@@ -14,7 +14,7 @@ const UserProfile = () => {
     e.preventDefault();
     try {
       // Step 1: Sign up the user with Supabase auth
-      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -26,33 +26,29 @@ const UserProfile = () => {
 
       if (signUpError) throw signUpError;
 
-      if (user) {
-        console.log('User created in auth:', user);
+      if (data?.user?.id) {
+        console.log('User created in auth:', data.user);
         
         // Step 2: Add the user to your users table
-        const { data: userData, error: insertError } = await supabase
+        const { error: insertError } = await supabase
           .from('users')
           .insert({
-            id: user.id,
+            id: data.user.id,
             email: email,
             username: username,
-            role: 'user',
-            created_at: new Date().toISOString(),
-            tours: [],
-            favorited_arts: [],
-            reviews: [],
-            added_street_arts: []
-          })
-          .select()
-          .single();
+            role: 'user'
+            // Other fields will use default values from the table definition
+          });
 
         if (insertError) {
           console.error('Error inserting user data:', insertError);
           throw insertError;
         }
 
-        console.log('User added to users table:', userData);
+        console.log('User added to users table');
         navigate('/user-profile');
+      } else {
+        throw new Error('Failed to create user');
       }
     } catch (err) {
       console.error('Error in sign up process:', err);
@@ -63,20 +59,22 @@ const UserProfile = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { data: { user }, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (signInError) throw signInError;
 
-      if (user) {
-        console.log('User signed in:', user);
+      if (data?.user) {
+        console.log('User signed in:', data.user);
         navigate('/user-profile');
+      } else {
+        throw new Error('Failed to sign in');
       }
     } catch (err) {
-      setError(err.message);
       console.error('Error signing in:', err);
+      setError(err.message);
     }
   };
 
