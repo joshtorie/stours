@@ -18,7 +18,17 @@ export function useNeighborhoods(options: UseNeighborhoodsOptions = {}) {
       try {
         let query = supabase
           .from('neighborhoods')
-          .select('*')
+          .select(`
+            id,
+            name,
+            city_id,
+            hero_image,
+            created_at,
+            cities (
+              id,
+              name
+            )
+          `)
           .order('name');
 
         if (options.cityId) {
@@ -28,14 +38,14 @@ export function useNeighborhoods(options: UseNeighborhoodsOptions = {}) {
         const { data, error: queryError } = await query;
 
         if (queryError) {
-          console.error('Error in neighborhoods query:', queryError);
+          console.error('Error fetching neighborhoods:', queryError);
           throw queryError;
         }
 
         console.log('Neighborhoods data:', data);
         setNeighborhoods(data || []);
       } catch (e) {
-        console.error('Error fetching neighborhoods:', e);
+        console.error('Error in useNeighborhoods:', e);
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);

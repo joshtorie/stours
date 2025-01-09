@@ -14,18 +14,28 @@ export function useArtists() {
       try {
         const { data, error: queryError } = await supabase
           .from('artists')
-          .select('*')
+          .select(`
+            id,
+            name,
+            bio,
+            hero_image,
+            created_at,
+            street_art (
+              id,
+              title
+            )
+          `)
           .order('name');
 
         if (queryError) {
-          console.error('Error in artists query:', queryError);
+          console.error('Error fetching artists:', queryError);
           throw queryError;
         }
 
         console.log('Artists data:', data);
         setArtists(data || []);
       } catch (e) {
-        console.error('Error fetching artists:', e);
+        console.error('Error in useArtists:', e);
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);

@@ -22,14 +22,17 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
           .from('street_art')
           .select(`
             *,
-            neighborhoods(
+            neighborhoods (
               id,
               name,
-              city_id
+              city_id,
+              hero_image
             ),
-            artists(
+            artists (
               id,
-              name
+              name,
+              bio,
+              hero_image
             )
           `)
           .order('created_at', { ascending: false });
@@ -47,31 +50,30 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
         const { data, error: queryError } = await query;
 
         if (queryError) {
-          console.error('Error in street art query:', queryError);
+          console.error('Error fetching street art:', queryError);
           throw queryError;
         }
-        
-        console.log('Raw street art data:', data);
-        
-        // Transform data to include full image URLs
-        const transformedData = data?.map(art => {
-          return {
-            ...art,
-            image: art.image,
-            ar_content: art.ar_content ? {
-              ...art.ar_content,
-              modelUrl: art.ar_content.modelUrl,
-              imageUrl: art.ar_content.imageUrl,
-              iosQuickLook: art.ar_content.iosQuickLook,
-              markerImage: art.ar_content.markerImage
-            } : null
-          };
-        }) || [];
 
-        console.log('Transformed street art data:', transformedData);
+        console.log('Street art data:', data);
+
+        // Transform data to include full URLs
+        const transformedData = data?.map(art => ({
+          ...art,
+          image: art.image,
+          description: art.description || '',  // Ensure description exists
+          title: art.title || 'Untitled',     // Ensure title exists
+          ar_content: art.ar_content ? {
+            ...art.ar_content,
+            modelUrl: art.ar_content.modelUrl,
+            imageUrl: art.ar_content.imageUrl,
+            iosQuickLook: art.ar_content.iosQuickLook,
+            markerImage: art.ar_content.markerImage
+          } : null
+        })) || [];
+
         setStreetArt(transformedData);
       } catch (e) {
-        console.error('Error fetching street art:', e);
+        console.error('Error in useStreetArt:', e);
         setError(e instanceof Error ? e.message : 'An error occurred');
       } finally {
         setLoading(false);
