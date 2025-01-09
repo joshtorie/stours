@@ -4,13 +4,7 @@ import type { Database } from '../types/supabase';
 
 type StreetArt = Database['public']['Tables']['street_art']['Row'];
 
-interface UseStreetArtOptions {
-  artistId?: string;
-  neighborhoodId?: string;
-  cityId?: string;
-}
-
-export function useStreetArt(options: UseStreetArtOptions = {}) {
+export function useStreetArt() {
   const [streetArt, setStreetArt] = useState<StreetArt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,61 +13,52 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
     let isMounted = true;
 
     async function fetchStreetArt() {
-      if (!isMounted) return;
-      
       try {
-        setLoading(true);
         console.log('Starting street art fetch...');
-
-        // Basic query to test connection
-        const { data: testData, error: testError } = await supabase
-          .from('street_art')
-          .select('count');
-
-        if (testError) {
-          console.error('Database connection test failed:', testError);
-          throw testError;
-        }
-
-        console.log('Database connection test successful:', testData);
-
-        // Main query
+        
+        // Simple query first
         const { data, error: queryError } = await supabase
           .from('street_art')
-          .select('*');
+          .select('id, title, image, description')
+          .limit(10);
+
+        console.log('Street art query result:', {
+          success: !queryError,
+          data,
+          error: queryError
+        });
 
         if (queryError) {
-          console.error('Street art query failed:', queryError);
           throw queryError;
         }
 
-        console.log('Raw street art data:', data);
-
         if (!data) {
-          setStreetArt([]);
+          console.log('No street art data found');
+          if (isMounted) {
+            setStreetArt([]);
+            setError('No data available');
+          }
           return;
         }
 
-        // Transform and set data
-        const transformedData = data.map(art => ({
-          ...art,
-          title: art.title || 'Untitled',
-          description: art.description || 'No description available',
-          image: art.image || ''
-        }));
-
+        console.log('Street art data found:', data.length, 'items');
+        
         if (isMounted) {
-          console.log('Setting street art data:', transformedData);
-          setStreetArt(transformedData);
+          setStreetArt(data.map(art => ({
+            ...art,
+            title: art.title || 'Untitled',
+            description: art.description || 'No description available',
+            image: art.image || ''
+          })));
         }
       } catch (e) {
-        console.error('Error in useStreetArt:', e);
+        console.error('Error fetching street art:', e);
         if (isMounted) {
           setError(e instanceof Error ? e.message : 'An error occurred');
         }
       } finally {
         if (isMounted) {
-          console.log('Setting loading to false');
+          console.log('Setting street art loading to false');
           setLoading(false);
         }
       }
@@ -84,7 +69,7 @@ export function useStreetArt(options: UseStreetArtOptions = {}) {
     return () => {
       isMounted = false;
     };
-  }, [options.artistId, options.neighborhoodId, options.cityId]);
+  }, []);
 
   return { streetArt, loading, error };
 }
