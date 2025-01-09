@@ -93,7 +93,41 @@ const UserProfile = () => {
         throw new Error('Failed to sign in');
       }
 
-      console.log('Successfully signed in');
+      // Check if user record exists
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (userError && userError.code !== 'PGRST116') {
+        console.error('Error checking user record:', userError);
+        throw userError;
+      }
+
+      // If user record doesn't exist, create it
+      if (!userData) {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            id: data.user.id,
+            email: data.user.email,
+            username: data.user.email?.split('@')[0],
+            role: 'user',
+            tours: [],
+            favorited_arts: [],
+            reviews: [],
+            added_street_arts: []
+          }])
+          .single();
+
+        if (insertError) {
+          console.error('Error creating user record:', insertError);
+          throw insertError;
+        }
+      }
+
+      console.log('Successfully signed in, navigating to profile...');
       navigate('/profile');
       
     } catch (err) {

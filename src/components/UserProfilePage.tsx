@@ -23,11 +23,19 @@ const UserProfilePage = () => {
     const fetchUserData = async () => {
       try {
         setLoading(true);
+        
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('Current session:', session);
 
-        if (sessionError || !session?.user) {
-          // If no session or error, redirect to auth
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          navigate('/auth');
+          return;
+        }
+
+        if (!session?.user) {
+          console.log('No active session, redirecting to auth');
           navigate('/auth');
           return;
         }
@@ -35,26 +43,46 @@ const UserProfilePage = () => {
         // Fetch user data from the users table
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('*')
+          .select(`
+            *,
+            tours,
+            favorited_arts (
+              id,
+              title,
+              image
+            ),
+            reviews (
+              id,
+              content,
+              rating
+            ),
+            added_street_arts (
+              id,
+              title,
+              image
+            )
+          `)
           .eq('id', session.user.id)
-          .maybeSingle();
+          .single();
 
         if (userError) {
           console.error('Error fetching user data:', userError);
           setError(userError.message);
-          return;
-        }
-
-        if (!userData) {
-          // If no user data, redirect to auth
           navigate('/auth');
           return;
         }
 
+        if (!userData) {
+          console.log('No user data found, redirecting to auth');
+          navigate('/auth');
+          return;
+        }
+
+        console.log('User data loaded:', userData);
         setUserData(userData);
       } catch (err) {
         console.error('Error in fetchUserData:', err);
-        setError(err.message);
+        setError(err.message || 'An error occurred');
         navigate('/auth');
       } finally {
         setLoading(false);
@@ -62,6 +90,18 @@ const UserProfilePage = () => {
     };
 
     fetchUserData();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session);
+      if (!session) {
+        navigate('/auth');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const handleSignOut = async () => {
