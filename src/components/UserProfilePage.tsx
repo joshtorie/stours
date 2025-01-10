@@ -67,71 +67,12 @@ const UserProfilePage = () => {
         if (userError) throw userError;
         setUserData(userData);
 
-        // Fetch user favorites with street art details
-        const { data: favorites, error: favoritesError } = await supabase
-          .from('user_favorites')
-          .select(`
-            street_art_id,
-            street_art:street_art (
-              title,
-              image
-            )
-          `)
-          .eq('user_id', user.id);
-
-        if (favoritesError) throw favoritesError;
-
-        // Fetch user tours
-        const { data: tours, error: toursError } = await supabase
-          .from('user_tours')
-          .select(`
-            tour_id,
-            tour:tour (
-              name
-            )
-          `)
-          .eq('user_id', user.id);
-
-        if (toursError) throw toursError;
-
-        // Fetch user reviews
-        const { data: reviews, error: reviewsError } = await supabase
-          .from('reviews')
-          .select('id, content, rating, street_art_id')
-          .eq('user_id', user.id);
-
-        if (reviewsError) throw reviewsError;
-
-        // Fetch user added art
-        const { data: addedArt, error: addedArtError } = await supabase
-          .from('user_added_art')
-          .select(`
-            street_art_id,
-            street_art (
-              title,
-              image
-            )
-          `)
-          .eq('user_id', user.id);
-
-        if (addedArtError) throw addedArtError;
-
+        // Initialize empty activity data until tables are ready
         setUserActivity({
-          favorites: favorites.map(f => ({
-            street_art_id: f.street_art_id,
-            title: f.street_art?.title || 'Untitled',
-            image: f.street_art?.image || ''
-          })),
-          tours: tours.map(t => ({
-            tour_id: t.tour_id,
-            name: t.tour?.name || 'Untitled Tour'
-          })),
-          reviews,
-          addedArt: addedArt.map(a => ({
-            street_art_id: a.street_art_id,
-            title: a.street_art?.title || 'Untitled',
-            image: a.street_art?.image || ''
-          }))
+          favorites: [],
+          tours: [],
+          reviews: [],
+          addedArt: []
         });
 
       } catch (e) {
