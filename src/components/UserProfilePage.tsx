@@ -47,43 +47,47 @@ const UserProfilePage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
+    // If not loading and no user, redirect to auth
+    if (!authLoading && !user) {
+      console.log('No user found, redirecting to auth');
       navigate('/auth', { replace: true });
       return;
     }
 
-    const fetchUserData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch basic user data
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, username, email, role')
-          .eq('id', user.id)
-          .single();
+    // Only fetch data if we have a user and not loading
+    if (!authLoading && user) {
+      const fetchUserData = async () => {
+        try {
+          setLoading(true);
+          
+          // Fetch basic user data
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('id, username, email, role')
+            .eq('id', user.id)
+            .single();
 
-        if (userError) throw userError;
-        setUserData(userData);
+          if (userError) throw userError;
+          setUserData(userData);
 
-        // Initialize empty activity data until tables are ready
-        setUserActivity({
-          favorites: [],
-          tours: [],
-          reviews: [],
-          addedArt: []
-        });
+          // Initialize empty activity data until tables are ready
+          setUserActivity({
+            favorites: [],
+            tours: [],
+            reviews: [],
+            addedArt: []
+          });
 
-      } catch (e) {
-        console.error('Error in profile page:', e);
-        setError(e instanceof Error ? e.message : 'An error occurred');
-      } finally {
-        setLoading(false);
-      }
-    };
+        } catch (e) {
+          console.error('Error in profile page:', e);
+          setError(e instanceof Error ? e.message : 'An error occurred');
+        } finally {
+          setLoading(false);
+        }
+      };
 
-    fetchUserData();
+      fetchUserData();
+    }
   }, [user, authLoading, navigate]);
 
   const handleSignOut = async () => {

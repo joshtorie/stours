@@ -45,12 +45,7 @@ const UserProfile = () => {
           id: data.user.id,
           email: data.user.email,
           username: username || data.user.email?.split('@')[0],
-          password: password,
-          role: 'user',
-          tours: [],
-          favorited_arts: [],
-          reviews: [],
-          added_street_arts: []
+          role: 'user'
         }])
         .single();
 
@@ -110,12 +105,7 @@ const UserProfile = () => {
             id: data.user.id,
             email: data.user.email,
             username: data.user.email?.split('@')[0],
-            password: password,
-            role: 'user',
-            tours: [],
-            favorited_arts: [],
-            reviews: [],
-            added_street_arts: []
+            role: 'user'
           }])
           .single();
 
