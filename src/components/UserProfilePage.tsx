@@ -72,7 +72,7 @@ const UserProfilePage = () => {
           .from('user_favorites')
           .select(`
             street_art_id,
-            street_art:street_art_id (
+            street_art:street_art (
               title,
               image
             )
@@ -86,7 +86,7 @@ const UserProfilePage = () => {
           .from('user_tours')
           .select(`
             tour_id,
-            tour:tour_id (
+            tour:tour (
               name
             )
           `)
@@ -107,7 +107,7 @@ const UserProfilePage = () => {
           .from('user_added_art')
           .select(`
             street_art_id,
-            street_art:street_art_id (
+            street_art (
               title,
               image
             )
